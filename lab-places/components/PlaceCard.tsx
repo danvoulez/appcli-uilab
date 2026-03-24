@@ -15,8 +15,8 @@ interface Props {
 }
 
 // Premium spring configs — no bounce
-const LAYOUT_SPRING = { type: 'spring', stiffness: 320, damping: 36, mass: 0.85 } as const;
-const FLIP_SPRING   = { type: 'spring', stiffness: 240, damping: 30, mass: 0.9  } as const;
+const LAYOUT_SPRING = { type: 'spring', stiffness: 400, damping: 38, mass: 0.7  } as const;
+const FLIP_SPRING   = { type: 'spring', stiffness: 450, damping: 34, mass: 0.55 } as const;
 
 export function PlaceCard({ summary, detail, isOpen, onOpen, onClose }: Props) {
   // `flipped`  — is the back face currently showing (or animating to show)?
