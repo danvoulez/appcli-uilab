@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PlaceCard } from './PlaceCard';
-import { places } from '@/data/places';
+import { mockPlaceSummaries, mockPlaceDetails } from '@/lib/mocks';
 
 export function PlaceGrid() {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -11,32 +11,26 @@ export function PlaceGrid() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Restore open state from URL
+  // Restore from URL
   useEffect(() => {
     const placeParam = searchParams.get('place');
-    if (placeParam && places.find((p) => p.id === placeParam)) {
+    if (placeParam && mockPlaceSummaries.find((p) => p.id === placeParam)) {
       setOpenId(placeParam);
     }
   }, [searchParams]);
 
-  // ESC key closes
+  // ESC key
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && openId) {
-        handleClose();
-      }
+      if (e.key === 'Escape' && openId) handleClose();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [openId]);
 
-  // Lock body scroll when a card is open
+  // Body scroll lock
   useEffect(() => {
-    if (openId) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    document.body.style.overflow = openId ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [openId]);
 
@@ -44,7 +38,7 @@ export function PlaceGrid() {
     setOpenId(id);
     const params = new URLSearchParams(searchParams.toString());
     params.set('place', id);
-    router.replace(`?${params.toString()}`, { scroll: false });
+    router.replace(`?${params}`, { scroll: false });
   }, [searchParams, router]);
 
   const handleClose = useCallback(() => {
@@ -63,18 +57,20 @@ export function PlaceGrid() {
       role="list"
       aria-label="LAB Places"
     >
-      {places.map((place, index) => (
-        <div key={place.id} role="listitem">
-          <PlaceCard
-            place={place}
-            isOpen={openId === place.id}
-            onOpen={() => handleOpen(place.id)}
-            onClose={handleClose}
-            gridRef={gridRef}
-            index={index}
-          />
-        </div>
-      ))}
+      {mockPlaceSummaries.map((summary, index) => {
+        const detail = mockPlaceDetails.find((d) => d.id === summary.id)!;
+        return (
+          <div key={summary.id} role="listitem">
+            <PlaceCard
+              summary={summary}
+              detail={detail}
+              isOpen={openId === summary.id}
+              onOpen={() => handleOpen(summary.id)}
+              onClose={handleClose}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
