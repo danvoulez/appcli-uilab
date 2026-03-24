@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import type { PlaceSummary } from '@/lib/types';
 import { StatusLights } from './StatusLights';
 
@@ -19,19 +18,12 @@ const statusDotColor: Record<string, string> = {
 
 export function PlaceCardFront({ summary }: Props) {
   return (
-    <div className="relative w-full h-full rounded-[20px] overflow-hidden select-none">
-      {/* Background image */}
-      <Image
-        src={summary.backgroundImage}
-        alt={summary.title}
-        fill
-        sizes="(max-width: 768px) 50vw, 33vw"
-        className="object-cover"
-        priority
-      />
-
-      {/* Vignette — top and bottom for legibility */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/25 rounded-[20px]" />
+    <div
+      className="relative w-full h-full rounded-[20px] overflow-hidden select-none"
+      style={{ backgroundColor: summary.accentColor }}
+    >
+      {/* Subtle noise / depth gradient */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-white/5 rounded-[20px]" />
 
       {/* Inner highlight on top edge */}
       <div className="absolute inset-x-0 top-0 h-px bg-white/10" />
