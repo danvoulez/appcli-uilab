@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { mockPlaceDetails } from '@/lib/mocks';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { StatusChip } from '@/components/StatusChip';
@@ -30,17 +29,12 @@ export default async function PlacePage({ params }: Props) {
 
         {/* Left — image + overview */}
         <div className="lg:col-span-1 space-y-5">
-          {/* Card image */}
-          <div className="relative aspect-square rounded-2xl overflow-hidden max-w-xs mx-auto lg:mx-0">
-            <Image
-              src={place.backgroundImage}
-              alt={place.title}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 80vw, 300px"
-              priority
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/5 to-transparent rounded-2xl" />
+          {/* Card color tile */}
+          <div
+            className="relative aspect-square rounded-2xl overflow-hidden max-w-xs mx-auto lg:mx-0"
+            style={{ backgroundColor: place.accentColor }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-white/5 rounded-2xl" />
             <div className="absolute bottom-4 left-4">
               <h2 className="text-2xl font-black text-white">{place.shortLabel}</h2>
               <p className="text-[10px] text-white/50 uppercase tracking-wider">{place.descriptor}</p>
