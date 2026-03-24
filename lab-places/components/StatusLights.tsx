@@ -1,26 +1,26 @@
 'use client';
 
-import { StatusLight } from '@/types/place';
+import type { StatusLight } from '@/lib/types';
 
 interface Props {
   lights: StatusLight[];
   compact?: boolean;
 }
 
-export function StatusLights({ lights, compact = false }: Props) {
-  const colorMap = {
-    on: 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]',
-    warn: 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]',
-    off: 'bg-white/20',
-  };
+const dotColor = {
+  on:   'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.65)]',
+  warn: 'bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,0.65)]',
+  off:  'bg-white/20',
+};
 
+export function StatusLights({ lights, compact = false }: Props) {
   if (compact) {
     return (
       <div className="flex items-center gap-1.5">
         {lights.map((l) => (
           <div
             key={l.label}
-            className={`rounded-full ${colorMap[l.status]} ${compact ? 'w-2 h-2' : 'w-2.5 h-2.5'}`}
+            className={`w-1.5 h-1.5 rounded-full ${dotColor[l.status]}`}
             title={l.label}
           />
         ))}
@@ -32,8 +32,8 @@ export function StatusLights({ lights, compact = false }: Props) {
     <div className="flex items-center gap-3">
       {lights.map((l) => (
         <div key={l.label} className="flex items-center gap-1.5">
-          <div className={`w-2 h-2 rounded-full ${colorMap[l.status]}`} />
-          <span className="text-[10px] font-medium uppercase tracking-wider text-white/50">
+          <div className={`w-1.5 h-1.5 rounded-full ${dotColor[l.status]}`} />
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-white/40">
             {l.label}
           </span>
         </div>
