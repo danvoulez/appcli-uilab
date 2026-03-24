@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import type { PlaceSummary, PlaceDetail } from '@/lib/types';
 import { PlaceCardFront } from './PlaceCardFront';
@@ -14,177 +14,154 @@ interface Props {
   onClose: () => void;
 }
 
-// ─── State machine ────────────────────────────────────────────────────────
-// Replaces fragile setTimeout sequencing with explicit phase transitions.
-
-type CardPhase =
-  | 'idle'          // resting in grid
-  | 'expanding'     // FLIP from grid → centre
-  | 'flipping'      // rotateY 0→180
-  | 'open'          // back face visible, fully interactive
-  | 'unflipping'    // rotateY 180→0
-  | 'collapsing';   // FLIP back to grid
-
-type CardEvent =
-  | { type: 'OPEN' }
-  | { type: 'EXPANDED' }      // layout animation settled
-  | { type: 'FLIP_DONE' }     // flip completed
-  | { type: 'CLOSE' }
-  | { type: 'UNFLIP_DONE' }   // unflip completed
-  | { type: 'COLLAPSE_DONE' };
-
-function reducer(phase: CardPhase, event: CardEvent): CardPhase {
-  switch (phase) {
-    case 'idle':       return event.type === 'OPEN' ? 'expanding' : phase;
-    case 'expanding':  return event.type === 'EXPANDED' ? 'flipping' : phase;
-    case 'flipping':   return event.type === 'FLIP_DONE' ? 'open' : phase;
-    case 'open':       return event.type === 'CLOSE' ? 'unflipping' : phase;
-    case 'unflipping': return event.type === 'UNFLIP_DONE' ? 'collapsing' : phase;
-    case 'collapsing': return event.type === 'COLLAPSE_DONE' ? 'idle' : phase;
-    default:           return phase;
-  }
-}
-
-// ─── Spring configs ────────────────────────────────────────────────────────
-
-const expandSpring   = { type: 'spring', stiffness: 340, damping: 34, mass: 0.9 } as const;
-const collapseSpring = { type: 'spring', stiffness: 380, damping: 38, mass: 0.8 } as const;
-const flipSpring     = { type: 'spring', stiffness: 260, damping: 32, mass: 0.8 } as const;
+// Premium spring configs — no bounce
+const LAYOUT_SPRING = { type: 'spring', stiffness: 320, damping: 36, mass: 0.85 } as const;
+const FLIP_SPRING   = { type: 'spring', stiffness: 240, damping: 30, mass: 0.9  } as const;
 
 export function PlaceCard({ summary, detail, isOpen, onOpen, onClose }: Props) {
-  const [phase, dispatch] = useReducer(reducer, 'idle');
-  const cardRef = useRef<HTMLDivElement>(null);
+  // `flipped`  — is the back face currently showing (or animating to show)?
+  // `closing`  — are we mid-close? (flip-back is playing; overlay still visible)
+  const [flipped, setFlipped] = useState(false);
+  const [closing, setClosing] = useState(false);
 
-  // Mouse parallax — only in idle state
+  // Mouse parallax — only on idle grid card
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const rotateX = useTransform(mouseY, [-0.5, 0.5], [2, -2]);
-  const rotateY = useTransform(mouseX, [-0.5, 0.5], [-2, 2]);
+  const tiltX  = useTransform(mouseY, [-0.5, 0.5], [2.5, -2.5]);
+  const tiltY  = useTransform(mouseX, [-0.5, 0.5], [-2.5, 2.5]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (phase !== 'idle') return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    mouseX.set((e.clientX - rect.left) / rect.width - 0.5);
-    mouseY.set((e.clientY - rect.top) / rect.height - 0.5);
-  }, [phase, mouseX, mouseY]);
-
-  const handleMouseLeave = useCallback(() => {
-    mouseX.set(0);
-    mouseY.set(0);
-  }, [mouseX, mouseY]);
-
-  const handleOpen = useCallback(() => {
-    if (phase !== 'idle') return;
+  // ── Open ──────────────────────────────────────────────────────────────────
+  function handleOpen() {
+    if (isOpen || closing) return;
     navigator.vibrate?.(8);
-    dispatch({ type: 'OPEN' });
-    onOpen();
-  }, [phase, onOpen]);
+    onOpen(); // parent sets isOpen=true → overlay enters AnimatePresence
+    // Flip to back is triggered by onLayoutAnimationComplete (see below)
+  }
 
-  const handleClose = useCallback(() => {
-    if (phase !== 'open') return;
-    navigator.vibrate?.(6);
-    dispatch({ type: 'CLOSE' });
-  }, [phase]);
-
-  // Callback when the expand layout animation settles
-  const onExpandComplete = useCallback(() => {
-    if (phase === 'expanding') dispatch({ type: 'EXPANDED' });
-  }, [phase]);
-
-  // Callback when the collapse layout animation settles
-  const onCollapseComplete = useCallback(() => {
-    if (phase === 'collapsing') {
-      dispatch({ type: 'COLLAPSE_DONE' });
-      onClose();
+  // Called when the FLIP expansion layout animation settles
+  function handleExpandSettled() {
+    // Only flip if we're opening (not in a closing sequence)
+    if (isOpen && !closing && !flipped) {
+      setFlipped(true);
     }
-  }, [phase, onClose]);
+  }
 
-  const isActive  = isOpen;
-  const isFlipped = phase === 'open' || phase === 'unflipping';
-  const showBack  = phase === 'flipping' || phase === 'open' || phase === 'unflipping';
+  // ── Close ─────────────────────────────────────────────────────────────────
+  // Step 1: user asks to close → flip card back to front
+  function handleCloseRequest() {
+    if (!flipped || closing) return;
+    navigator.vibrate?.(6);
+    setClosing(true);
+    setFlipped(false);
+  }
+
+  // Step 2: flip-back animation finishes → now collapse the overlay back to grid
+  function handleFlipBackComplete() {
+    if (closing && !flipped) {
+      // Flip-back done. Removing from AnimatePresence triggers the layout
+      // animation back to the grid slot (Framer Motion layoutId handles this).
+      setClosing(false);
+      onClose(); // parent sets isOpen=false
+    }
+  }
+
+  // The overlay is visible while open OR while the flip-back is playing
+  const overlayVisible = isOpen || closing;
+  // Grid card is hidden while any overlay activity is happening
+  const gridVisible    = !isOpen && !closing;
 
   return (
     <>
-      {/* ── Grid slot ──────────────────────────────────────────────────────── */}
+      {/* ── Grid slot ──────────────────────────────────────────────────── */}
+      {/* Always in DOM so layoutId has a source/target to animate to/from */}
       <motion.div
-        ref={cardRef}
         layoutId={`card-${summary.id}`}
-        className={`relative aspect-square rounded-[20px] overflow-hidden cursor-pointer outline-none
-          ${isActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-        style={{ perspective: 800 }}
-        onClick={phase === 'idle' ? handleOpen : undefined}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        whileHover={phase === 'idle' ? { scale: 1.015, transition: { duration: 0.2 } } : {}}
-        whileTap={phase === 'idle' ? { scale: 0.975, transition: { duration: 0.1 } } : {}}
-        tabIndex={phase === 'idle' ? 0 : -1}
+        layout="position"
+        transition={LAYOUT_SPRING}
+        className="relative aspect-square rounded-[20px] overflow-hidden cursor-pointer outline-none"
+        style={{
+          opacity: gridVisible ? 1 : 0,
+          pointerEvents: gridVisible ? 'auto' : 'none',
+        }}
+        onClick={gridVisible ? handleOpen : undefined}
+        onMouseMove={(e) => {
+          if (!gridVisible) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          mouseX.set((e.clientX - r.left) / r.width  - 0.5);
+          mouseY.set((e.clientY - r.top)  / r.height - 0.5);
+        }}
+        onMouseLeave={() => { mouseX.set(0); mouseY.set(0); }}
+        whileHover={gridVisible ? { scale: 1.015, transition: { duration: 0.18 } } : {}}
+        whileTap={gridVisible   ? { scale: 0.975, transition: { duration: 0.09 } } : {}}
+        tabIndex={gridVisible ? 0 : -1}
         role="button"
         aria-label={`Open ${summary.title}`}
         onKeyDown={(e) => {
-          if ((e.key === 'Enter' || e.key === ' ') && phase === 'idle') {
+          if ((e.key === 'Enter' || e.key === ' ') && gridVisible) {
             e.preventDefault();
             handleOpen();
           }
         }}
       >
+        {/* Parallax tilt wrapper — only active in grid */}
         <motion.div
           className="w-full h-full"
-          style={phase === 'idle' ? { rotateX, rotateY, transformStyle: 'preserve-3d' } : {}}
+          style={gridVisible ? { rotateX: tiltX, rotateY: tiltY, transformStyle: 'preserve-3d' } : {}}
         >
           <PlaceCardFront summary={summary} />
         </motion.div>
       </motion.div>
 
-      {/* ── Expanded overlay ───────────────────────────────────────────────── */}
-      <AnimatePresence onExitComplete={onCollapseComplete}>
-        {isActive && (
+      {/* ── Expanded overlay ───────────────────────────────────────────── */}
+      <AnimatePresence>
+        {overlayVisible && (
           <>
-            {/* Backdrop */}
+            {/* Dim backdrop */}
             <motion.div
-              key={`backdrop-${summary.id}`}
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              key={`bd-${summary.id}`}
+              className="fixed inset-0 z-40 bg-black/55 backdrop-blur-[3px]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.28 }}
-              onClick={handleClose}
+              transition={{ duration: 0.22 }}
+              onClick={handleCloseRequest}
               aria-hidden="true"
             />
 
-            {/* Card shell — uses layoutId for FLIP */}
-            <motion.div
-              key={`expanded-${summary.id}`}
-              layoutId={`card-${summary.id}`}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 pointer-events-none"
-              transition={phase === 'collapsing' ? collapseSpring : expandSpring}
-              onLayoutAnimationComplete={onExpandComplete}
-            >
-              {/* Sized wrapper */}
+            {/*
+              Centering shell — this is NOT the layoutId element.
+              pointer-events:none so clicking the backdrop works.
+            */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 pointer-events-none">
+              {/*
+                THE FLIP target — same layoutId as the grid card.
+                Framer Motion animates the card from its grid position to here.
+                This element must be the same visual size as the final card.
+              */}
               <motion.div
-                className="relative pointer-events-auto"
-                style={{
-                  width: 'min(520px, 92vw)',
-                  height: 'min(680px, 88vh)',
-                  perspective: 1200,
-                }}
-                initial={{ scale: 0.94 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0.94 }}
-                transition={expandSpring}
+                layoutId={`card-${summary.id}`}
+                layout="position"
+                transition={LAYOUT_SPRING}
+                className="relative pointer-events-auto rounded-[20px] overflow-hidden"
+                style={{ width: 'min(520px, 92vw)', height: 'min(680px, 88vh)' }}
+                onLayoutAnimationComplete={handleExpandSettled}
               >
-                {/* 3D flip container */}
+                {/*
+                  3D flip container.
+                  perspective must be on the PARENT, so we set it here via style.
+                  transformStyle preserve-3d on this element.
+                */}
                 <motion.div
                   className="relative w-full h-full"
-                  animate={{ rotateY: isFlipped ? 180 : 0 }}
-                  transition={flipSpring}
-                  style={{ transformStyle: 'preserve-3d' }}
-                  onAnimationComplete={(definition) => {
-                    // definition is the animate object, check via phase
-                    if (phase === 'flipping')   dispatch({ type: 'FLIP_DONE' });
-                    if (phase === 'unflipping') {
-                      dispatch({ type: 'UNFLIP_DONE' });
-                      // Trigger collapse by removing from AnimatePresence
-                      onClose();
+                  style={{ transformStyle: 'preserve-3d', perspective: '1200px' }}
+                  animate={{ rotateY: flipped ? 180 : 0 }}
+                  transition={FLIP_SPRING}
+                  onAnimationComplete={(latest) => {
+                    // Only act on the rotateY animation settling
+                    if (typeof latest === 'object' && 'rotateY' in latest) {
+                      const ry = (latest as { rotateY: number }).rotateY;
+                      // rotateY 0 → flip-back complete (if we were closing)
+                      if (Math.abs(ry) < 1) handleFlipBackComplete();
                     }
                   }}
                 >
@@ -196,7 +173,7 @@ export function PlaceCard({ summary, detail, isOpen, onOpen, onClose }: Props) {
                     <PlaceCardFront summary={summary} />
                   </div>
 
-                  {/* Back face */}
+                  {/* Back face — rotated 180° so it shows when parent is at 180° */}
                   <div
                     className="absolute inset-0 rounded-[20px] overflow-hidden"
                     style={{
@@ -205,17 +182,18 @@ export function PlaceCard({ summary, detail, isOpen, onOpen, onClose }: Props) {
                       transform: 'rotateY(180deg)',
                     }}
                   >
-                    {showBack && (
+                    {/* Mount back content only while it could be visible */}
+                    {(flipped || closing) && (
                       <PlaceCardBack
                         summary={summary}
                         detail={detail}
-                        onClose={handleClose}
+                        onClose={handleCloseRequest}
                       />
                     )}
                   </div>
                 </motion.div>
               </motion.div>
-            </motion.div>
+            </div>
           </>
         )}
       </AnimatePresence>
