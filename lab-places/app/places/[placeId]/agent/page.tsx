@@ -4,13 +4,16 @@ import { AgentChat } from '@/components/agent/AgentChat';
 
 interface Props {
   params: Promise<{ placeId: string }>;
+  searchParams: Promise<{ q?: string }>;
 }
 
-export default async function AgentPage({ params }: Props) {
+export default async function AgentPage({ params, searchParams }: Props) {
   const { placeId } = await params;
+  const { q } = await searchParams;
   const place = mockPlaceDetails.find((p) => p.id === placeId);
   if (!place) notFound();
-  return <AgentChat place={place} />;
+  // q comes from ActionRail non-href actions: ?q=<action label>
+  return <AgentChat place={place} initialQuery={q} />;
 }
 
 export async function generateStaticParams() {

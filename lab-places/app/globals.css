@@ -20,6 +20,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Structural: prevent native scrollbar ever showing on the body.
+   Each page that needs scroll manages it through its own overflow container
+   using .scrollbar-none. This kills the white scrollbar globally. */
+html {
+  scrollbar-width: none;
+}
+html::-webkit-scrollbar {
+  display: none;
+}
+
 /* Hide scrollbar but keep scroll */
 .scrollbar-none {
   -ms-overflow-style: none;
