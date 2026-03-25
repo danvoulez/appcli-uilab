@@ -7,10 +7,19 @@ import type { ActionItem } from '@/lib/types';
 interface Props {
   actions: ActionItem[];
   title?: string;
-  columns?: 1 | 2;
+  /** 1, 2, or 'responsive' (1-col on mobile, 2-col on desktop) */
+  columns?: 1 | 2 | 'responsive';
+  /** When provided, tints the primary-variant button with the place accent color */
+  accentColor?: string;
 }
 
-export function ActionRail({ actions, title = 'Actions', columns = 2 }: Props) {
+export function ActionRail({ actions, title = 'Actions', columns = 2, accentColor }: Props) {
+  const gridCls = {
+    1:           'grid-cols-1',
+    2:           'grid-cols-2',
+    responsive:  'grid-cols-1 md:grid-cols-2',
+  }[columns];
+
   const variantCls = {
     primary:   'bg-white/10 hover:bg-white/16 border-white/20 text-white font-semibold',
     secondary: 'bg-white/5 hover:bg-white/9 border-white/8 text-white/65 hover:text-white',
@@ -23,19 +32,28 @@ export function ActionRail({ actions, title = 'Actions', columns = 2 }: Props) {
       {title && (
         <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/30 mb-2">{title}</p>
       )}
-      <div className={`grid gap-1.5 ${columns === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+      <div className={`grid gap-1.5 ${gridCls}`}>
         {actions.map((action) => {
-          const cls = `flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs border transition-all duration-150 ${variantCls[action.variant ?? 'secondary']}`;
+          // Primary action with accentColor gets a place-tinted background
+          const isPrimaryAccent = action.variant === 'primary' && !!accentColor;
+          const baseCls = `flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs border transition-all duration-150 ${variantCls[action.variant ?? 'secondary']}`;
+          const accentStyle = isPrimaryAccent
+            ? {
+                background: `linear-gradient(135deg, ${accentColor}4a 0%, ${accentColor}28 100%)`,
+                borderColor: `${accentColor}50`,
+              }
+            : undefined;
+
           if (action.href) {
             return (
-              <Link key={action.id} href={action.href} className={cls}>
+              <Link key={action.id} href={action.href} className={baseCls} style={accentStyle}>
                 <span>{action.label}</span>
                 <ArrowRight size={11} className="opacity-50 flex-shrink-0" />
               </Link>
             );
           }
           return (
-            <button key={action.id} className={cls} disabled={action.disabled}>
+            <button key={action.id} className={baseCls} style={accentStyle} disabled={action.disabled}>
               <span>{action.label}</span>
             </button>
           );
