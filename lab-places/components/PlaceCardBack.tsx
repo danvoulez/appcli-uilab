@@ -105,9 +105,9 @@ export function PlaceCardBack({ summary, detail, onClose }: Props) {
   // orientation from the front-face flip carries through naturally.
   const bgStyle = {
     background: [
-      `radial-gradient(ellipse 110% 42% at 50% 0%, ${color}44 0%, transparent 68%)`,
-      `radial-gradient(ellipse 60% 32% at 0% 18%, ${color}22 0%, transparent 55%)`,
-      `linear-gradient(165deg, ${color}1e 0%, transparent 46%)`,
+      `radial-gradient(ellipse 110% 42% at 50% 0%, ${color}77 0%, transparent 65%)`,
+      `radial-gradient(ellipse 60% 32% at 0% 18%, ${color}44 0%, transparent 52%)`,
+      `linear-gradient(165deg, ${color}33 0%, transparent 44%)`,
       '#111111',
     ].join(', '),
   };
@@ -116,7 +116,7 @@ export function PlaceCardBack({ summary, detail, onClose }: Props) {
   const header = (
     <div
       className="flex-shrink-0 flex items-start justify-between px-5 pt-5 pb-3"
-      style={{ borderBottom: `1px solid ${color}2e` }}
+      style={{ borderBottom: `1px solid ${color}50` }}
     >
       <div className="space-y-1.5 min-w-0">
         <div className="flex items-center gap-2.5 flex-wrap">
@@ -147,7 +147,7 @@ export function PlaceCardBack({ summary, detail, onClose }: Props) {
       {/* Top accent line — orients the user to the place color */}
       <div
         className="absolute top-0 left-0 right-0 h-[1px] pointer-events-none rounded-t-[20px]"
-        style={{ background: `linear-gradient(90deg, transparent 0%, ${color}90 35%, ${color}90 65%, transparent 100%)` }}
+        style={{ background: `linear-gradient(90deg, transparent 0%, ${color}cc 35%, ${color}cc 65%, transparent 100%)` }}
       />
 
       {header}

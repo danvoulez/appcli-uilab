@@ -1,4 +1,3 @@
-import { Suspense } from 'react';
 import { PlaceGrid } from '@/components/PlaceGrid';
 
 export default function Home() {
@@ -33,9 +32,7 @@ export default function Home() {
 
         {/* Grid */}
         <div className="flex-1 px-3 md:px-6 lg:px-8 pb-8 max-w-5xl mx-auto w-full">
-          <Suspense>
-            <PlaceGrid />
-          </Suspense>
+          <PlaceGrid />
         </div>
       </div>
     </main>
