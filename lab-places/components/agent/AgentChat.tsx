@@ -302,7 +302,7 @@ function UserBubble({ msg, color }: { msg: ChatMsg; color: string }) {
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-export function AgentChat({ place }: { place: PlaceDetail }) {
+export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initialQuery?: string }) {
   const color = place.accentColor;
 
   const [messages, setMessages] = useState<ChatMsg[]>([
@@ -310,7 +310,7 @@ export function AgentChat({ place }: { place: PlaceDetail }) {
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [showPrompts, setShowPrompts] = useState(true);
+  const [showPrompts, setShowPrompts] = useState(!initialQuery);
 
   const bottomRef  = useRef<HTMLDivElement>(null);
   const inputRef   = useRef<HTMLTextAreaElement>(null);
@@ -322,6 +322,15 @@ export function AgentChat({ place }: { place: PlaceDetail }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  // Auto-send action query passed from ActionRail (e.g. ?q=Retry+failed+jobs)
+  useEffect(() => {
+    if (initialQuery) {
+      const timer = setTimeout(() => handleSend(initialQuery), 600);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Textarea auto-resize
   useEffect(() => {

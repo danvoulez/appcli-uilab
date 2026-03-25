@@ -1,4 +1,5 @@
 import { PlaceGrid } from '@/components/PlaceGrid';
+import { mockPlaceSummaries } from '@/lib/mocks';
 
 export default function Home() {
   return (
@@ -25,7 +26,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-              <span className="text-[10px] text-white/28 font-semibold tracking-wide">9 active</span>
+              <span className="text-[10px] text-white/28 font-semibold tracking-wide">{mockPlaceSummaries.length} active</span>
             </div>
           </div>
         </header>

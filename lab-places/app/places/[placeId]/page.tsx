@@ -171,13 +171,14 @@ export default async function PlacePage({ params }: Props) {
             <AgentHero placeId={placeId} shortLabel={place.shortLabel} color={color} />
           </div>
 
-          {/* 4. Action rail — fixed height, capped at 5 items */}
+          {/* 4. Action rail — non-href actions route to agent chat */}
           <div className="flex-shrink-0">
             <ActionRail
               actions={place.actions.slice(0, 5)}
               title=""
               columns={1}
               accentColor={color}
+              agentHref={`/places/${placeId}/agent`}
             />
           </div>
 
@@ -306,7 +307,7 @@ export default async function PlacePage({ params }: Props) {
                   <InfoPanel key={section.title} title={section.title} rows={section.rows} />
                 ))}
 
-                <ActionRail actions={place.actions} title="Quick Actions" columns={2} accentColor={color} />
+                <ActionRail actions={place.actions} title="Quick Actions" columns={2} accentColor={color} agentHref={`/places/${placeId}/agent`} />
 
               </div>
             </div>

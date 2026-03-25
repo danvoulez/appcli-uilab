@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, MessageSquare } from 'lucide-react';
 import type { ActionItem } from '@/lib/types';
 
 interface Props {
@@ -11,9 +11,15 @@ interface Props {
   columns?: 1 | 2 | 'responsive';
   /** When provided, tints the primary-variant button with the place accent color */
   accentColor?: string;
+  /**
+   * Base URL of the place's agent chat (e.g. /places/lab-512/agent).
+   * When set, actions without an href become links to the agent
+   * with the action label pre-filled as ?q=<label> instead of dead buttons.
+   */
+  agentHref?: string;
 }
 
-export function ActionRail({ actions, title = 'Actions', columns = 2, accentColor }: Props) {
+export function ActionRail({ actions, title = 'Actions', columns = 2, accentColor, agentHref }: Props) {
   const gridCls = {
     1:           'grid-cols-1',
     2:           'grid-cols-2',
@@ -34,7 +40,6 @@ export function ActionRail({ actions, title = 'Actions', columns = 2, accentColo
       )}
       <div className={`grid gap-1.5 ${gridCls}`}>
         {actions.map((action) => {
-          // Primary action with accentColor gets a place-tinted background
           const isPrimaryAccent = action.variant === 'primary' && !!accentColor;
           const baseCls = `flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[13px] md:text-xs border transition-all duration-150 ${variantCls[action.variant ?? 'secondary']}`;
           const accentStyle = isPrimaryAccent
@@ -44,6 +49,7 @@ export function ActionRail({ actions, title = 'Actions', columns = 2, accentColo
               }
             : undefined;
 
+          // Explicit href → navigate directly
           if (action.href) {
             return (
               <Link key={action.id} href={action.href} className={baseCls} style={accentStyle}>
@@ -52,8 +58,22 @@ export function ActionRail({ actions, title = 'Actions', columns = 2, accentColo
               </Link>
             );
           }
+
+          // No href but agent is available → route to agent chat with action pre-filled.
+          // This is the correct behaviour: the agent IS the command surface.
+          if (agentHref && !action.disabled) {
+            const href = `${agentHref}?q=${encodeURIComponent(action.label)}`;
+            return (
+              <Link key={action.id} href={href} className={baseCls} style={accentStyle}>
+                <span>{action.label}</span>
+                <MessageSquare size={11} className="opacity-40 flex-shrink-0" />
+              </Link>
+            );
+          }
+
+          // Disabled or no agent context — render inert
           return (
-            <button key={action.id} className={baseCls} style={accentStyle} disabled={action.disabled}>
+            <button key={action.id} className={`${baseCls} cursor-not-allowed opacity-40`} disabled>
               <span>{action.label}</span>
             </button>
           );
