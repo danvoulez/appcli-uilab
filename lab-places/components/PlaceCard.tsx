@@ -19,8 +19,8 @@ const LAYOUT_SPRING = { type: 'spring', stiffness: 400, damping: 38, mass: 0.7  
 const FLIP_SPRING   = { type: 'spring', stiffness: 450, damping: 34, mass: 0.55 } as const;
 
 export function PlaceCard({ summary, detail, isOpen, onOpen, onClose }: Props) {
-  // `flipped` — is the back face currently showing (or animating to show)?
   const [flipped, setFlipped] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   // Mouse parallax — only on idle grid card
   const mouseX = useMotionValue(0);
@@ -31,22 +31,32 @@ export function PlaceCard({ summary, detail, isOpen, onOpen, onClose }: Props) {
   // ── Open ──────────────────────────────────────────────────────────────────
   // Flip + expand happen simultaneously
   function handleOpen() {
-    if (isOpen) return;
+    if (isOpen || closing) return;
     navigator.vibrate?.(8);
     setFlipped(true);
     onOpen();
   }
 
   // ── Close ─────────────────────────────────────────────────────────────────
-  // Flip-back + collapse happen simultaneously
+  // Step 1: flip back to front face (overlay stays mounted)
   function handleCloseRequest() {
-    if (!isOpen) return;
+    if (!flipped || closing) return;
     navigator.vibrate?.(6);
+    setClosing(true);
     setFlipped(false);
-    onClose();
   }
 
-  const gridVisible = !isOpen;
+  // Step 2: flip-back finishes → collapse back to grid
+  function handleFlipBackDone() {
+    if (closing && !flipped) {
+      setClosing(false);
+      onClose();
+    }
+  }
+
+  // Overlay stays visible during flip-back so the animation plays out
+  const overlayVisible = isOpen || closing;
+  const gridVisible    = !isOpen && !closing;
 
   return (
     <>
@@ -91,7 +101,7 @@ export function PlaceCard({ summary, detail, isOpen, onOpen, onClose }: Props) {
 
       {/* ── Expanded overlay ───────────────────────────────────────────── */}
       <AnimatePresence>
-        {isOpen && (
+        {overlayVisible && (
           <>
             {/* Dim backdrop */}
             <motion.div
@@ -121,6 +131,12 @@ export function PlaceCard({ summary, detail, isOpen, onOpen, onClose }: Props) {
                   style={{ transformStyle: 'preserve-3d', perspective: '1200px' }}
                   animate={{ rotateY: flipped ? 180 : 0 }}
                   transition={FLIP_SPRING}
+                  onAnimationComplete={(latest) => {
+                    if (typeof latest === 'object' && 'rotateY' in latest) {
+                      const ry = (latest as { rotateY: number }).rotateY;
+                      if (Math.abs(ry) < 1) handleFlipBackDone();
+                    }
+                  }}
                 >
                   {/* Front face */}
                   <div
@@ -139,11 +155,13 @@ export function PlaceCard({ summary, detail, isOpen, onOpen, onClose }: Props) {
                       transform: 'rotateY(180deg)',
                     }}
                   >
-                    <PlaceCardBack
-                      summary={summary}
-                      detail={detail}
-                      onClose={handleCloseRequest}
-                    />
+                    {(flipped || closing) && (
+                      <PlaceCardBack
+                        summary={summary}
+                        detail={detail}
+                        onClose={handleCloseRequest}
+                      />
+                    )}
                   </div>
                 </motion.div>
               </motion.div>
