@@ -5,8 +5,7 @@ import { StatusChip } from '@/components/StatusChip';
 import { ActionRail } from '@/components/shell/ActionRail';
 import { InfoPanel } from '@/components/shell/InfoPanel';
 import { ObjectPanel } from '@/components/shell/ObjectPanel';
-import { CollapsibleSection } from '@/components/shell/CollapsibleSection';
-import { AlertTriangle, ArrowLeft, ArrowRight, MessageSquare } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, MessageSquare } from 'lucide-react';
 
 interface Props {
   params: Promise<{ placeId: string }>;
@@ -16,14 +15,14 @@ function AgentHero({ placeId, shortLabel, color }: { placeId: string; shortLabel
   return (
     <Link
       href={`/places/${placeId}/agent`}
-      className="group relative flex items-center justify-between w-full rounded-2xl overflow-hidden transition-all duration-150 active:scale-[0.99]"
+      className="group relative flex items-center justify-between w-full rounded-xl overflow-hidden transition-all duration-150 active:scale-[0.99]"
       style={{
         background: [
           `radial-gradient(ellipse 80% 120% at 0% 50%, ${color}cc 0%, transparent 55%)`,
           `linear-gradient(135deg, ${color}aa 0%, ${color}66 55%, ${color}33 100%)`,
         ].join(', '),
         border: `1px solid ${color}60`,
-        padding: '18px 22px',
+        padding: '14px 18px',
       }}
     >
       <div
@@ -31,15 +30,15 @@ function AgentHero({ placeId, shortLabel, color }: { placeId: string; shortLabel
         style={{ background: `linear-gradient(90deg, ${color}ff, ${color}77, transparent)` }}
       />
       <div className="space-y-0.5">
-        <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-white/50">
+        <p className="text-[8px] font-bold uppercase tracking-[0.16em] text-white/50">
           every action · every question
         </p>
-        <p className="text-base font-black text-white leading-tight tracking-tight">
+        <p className="text-sm font-black text-white leading-tight tracking-tight">
           Talk to {shortLabel} agent
         </p>
       </div>
-      <div className="flex-shrink-0 ml-3 w-9 h-9 flex items-center justify-center rounded-full bg-white/12 group-hover:bg-white/22 border border-white/18 transition-all duration-150">
-        <MessageSquare size={15} className="text-white" />
+      <div className="flex-shrink-0 ml-3 w-8 h-8 flex items-center justify-center rounded-full bg-white/12 group-hover:bg-white/22 border border-white/18 transition-all duration-150">
+        <MessageSquare size={13} className="text-white" />
       </div>
     </Link>
   );
@@ -51,7 +50,6 @@ export default async function PlacePage({ params }: Props) {
   if (!place) notFound();
 
   const color = place.accentColor;
-  const navActions = place.actions.filter((a) => a.href).slice(0, 2);
 
   return (
     <div className="h-screen bg-[#0e0e0e] overflow-hidden flex flex-col">
@@ -64,25 +62,24 @@ export default async function PlacePage({ params }: Props) {
       />
 
       {/* ── Back nav ──────────────────────────────────────────────────── */}
-      <nav className="relative z-10 flex-shrink-0 flex items-center px-4 md:px-8 py-3 border-b border-white/[0.06]">
+      <nav className="relative z-10 flex-shrink-0 flex items-center px-4 md:px-8 py-2.5 border-b border-white/[0.06]">
         <Link
           href="/"
           className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white/35 hover:text-white/65 transition-colors"
         >
-          <ArrowLeft size={11} />
+          <ArrowLeft size={10} />
           LAB Places
         </Link>
       </nav>
 
       {/* ══════════════════════════════════════════════════════════════
           MOBILE — fixed single-viewport, no scroll
-          Banner fills remaining height after fixed-size elements.
           ══════════════════════════════════════════════════════════════ */}
-      <div className="md:hidden relative z-10 flex-1 flex flex-col px-4 pt-3 pb-4 gap-2.5 overflow-hidden min-h-0">
+      <div className="md:hidden relative z-10 flex-1 flex flex-col px-3.5 pt-2.5 pb-3 gap-2 overflow-hidden min-h-0">
 
-        {/* 1. Profile banner — accent-saturated, fills available height */}
+        {/* 1. Profile banner — constrained to ~38% so action area has room */}
         <div
-          className="relative flex-1 min-h-0 rounded-2xl overflow-hidden flex flex-col justify-between"
+          className="relative flex-[0_0_38%] min-h-0 rounded-2xl overflow-hidden flex flex-col justify-between"
           style={{
             background: [
               `radial-gradient(ellipse 120% 65% at 50% 0%, ${color}cc 0%, transparent 60%)`,
@@ -98,26 +95,23 @@ export default async function PlacePage({ params }: Props) {
             style={{ background: `linear-gradient(90deg, ${color}ff, ${color}bb 40%, transparent)` }}
           />
 
-          {/* Top: descriptor + status */}
-          <div className="flex items-center justify-between px-5 pt-5">
+          <div className="flex items-center justify-between px-4 pt-4">
             <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: `${color}ee` }}>
               {place.descriptor}
             </p>
             <StatusChip status={place.status} />
           </div>
 
-          {/* Bottom: title + summary */}
-          <div className="px-5 pb-5">
-            <h2 className="text-[2.2rem] font-black text-white leading-none tracking-tight">
+          <div className="px-4 pb-4">
+            <h2 className="text-[2rem] font-black text-white leading-none tracking-tight">
               {place.shortLabel}
             </h2>
-            <p className="text-xs text-white/50 mt-1.5 leading-snug max-w-[200px]">
+            <p className="text-[11px] text-white/50 mt-1 leading-snug max-w-[200px]">
               {place.shortSummary}
             </p>
-            {/* Attention indicator inline */}
             {place.attention && (
-              <div className="flex items-center gap-1.5 mt-3">
-                <AlertTriangle size={11} className="text-amber-400 flex-shrink-0" />
+              <div className="flex items-center gap-1.5 mt-2.5">
+                <AlertTriangle size={10} className="text-amber-400 flex-shrink-0" />
                 <p className="text-[10px] font-semibold text-amber-300 truncate">{place.attention.title}</p>
               </div>
             )}
@@ -125,8 +119,8 @@ export default async function PlacePage({ params }: Props) {
         </div>
 
         {/* 2. Compact health strip */}
-        <div className="flex-shrink-0 grid grid-cols-2 gap-2.5">
-          <div className="px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.07] space-y-1.5">
+        <div className="flex-shrink-0 grid grid-cols-2 gap-2">
+          <div className="px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.07] space-y-1">
             <p className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/28">Readiness</p>
             {place.statusLights.map((l) => (
               <div key={l.label} className="flex items-center justify-between gap-1">
@@ -137,7 +131,7 @@ export default async function PlacePage({ params }: Props) {
               </div>
             ))}
           </div>
-          <div className="px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.07] space-y-1.5">
+          <div className="px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.07] space-y-1">
             <p className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/28">Signals</p>
             {place.primarySignals.slice(0, 3).map((s) => (
               <div key={s.label} className="flex items-start justify-between gap-1">
@@ -153,21 +147,15 @@ export default async function PlacePage({ params }: Props) {
           <AgentHero placeId={placeId} shortLabel={place.shortLabel} color={color} />
         </div>
 
-        {/* 4. 2 quick navigable actions */}
-        {navActions.length > 0 && (
-          <div className="flex-shrink-0 grid grid-cols-2 gap-2">
-            {navActions.map((action) => (
-              <Link
-                key={action.id}
-                href={action.href!}
-                className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-white/60 hover:text-white border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] transition-all"
-              >
-                <span className="truncate">{action.label}</span>
-                <ArrowRight size={10} className="opacity-50 flex-shrink-0 ml-1" />
-              </Link>
-            ))}
-          </div>
-        )}
+        {/* 4. Full action rail */}
+        <div className="flex-shrink-0">
+          <ActionRail
+            actions={place.actions.slice(0, 4)}
+            title=""
+            columns={2}
+            accentColor={color}
+          />
+        </div>
 
       </div>
 
@@ -175,11 +163,11 @@ export default async function PlacePage({ params }: Props) {
           DESKTOP — scrollable, inspect-rich
           ══════════════════════════════════════════════════════════════ */}
       <div className="hidden md:block relative z-10 flex-1 overflow-y-auto scrollbar-none">
-        <div className="max-w-6xl mx-auto px-8 py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="max-w-6xl mx-auto px-8 py-5">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
             {/* Left — color tile + readiness + signals + relations */}
-            <div className="lg:col-span-1 space-y-4">
+            <div className="lg:col-span-1 space-y-3.5">
               <div
                 className="relative aspect-square rounded-2xl overflow-hidden max-w-xs mx-auto lg:mx-0"
                 style={{
@@ -200,8 +188,8 @@ export default async function PlacePage({ params }: Props) {
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.07]">
-                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/28 mb-2.5">Readiness</p>
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.07]">
+                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/28 mb-2">Readiness</p>
                 <div className="space-y-1.5">
                   {place.statusLights.map((l) => (
                     <div key={l.label} className="flex items-center justify-between">
@@ -221,8 +209,8 @@ export default async function PlacePage({ params }: Props) {
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.07]">
-                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/28 mb-2.5">Key Signals</p>
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.07]">
+                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/28 mb-2">Key Signals</p>
                 <div className="space-y-1.5">
                   {place.primarySignals.map((s) => (
                     <div key={s.label} className="flex items-start justify-between">
@@ -238,7 +226,7 @@ export default async function PlacePage({ params }: Props) {
 
               {place.relations.length > 0 && (
                 <div>
-                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/28 mb-2">Relations</p>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/28 mb-1.5">Relations</p>
                   <div className="space-y-1">
                     {place.relations.map((rel) => (
                       <div key={rel.place} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
@@ -258,18 +246,18 @@ export default async function PlacePage({ params }: Props) {
             </div>
 
             {/* Right — agent first, then inspect */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="lg:col-span-2 space-y-3.5">
 
               <AgentHero placeId={placeId} shortLabel={place.shortLabel} color={color} />
 
-              <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.07]">
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.07]">
                 <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/28 mb-2">Overview</p>
                 <p className="text-sm text-white/62 leading-relaxed">{place.overview}</p>
               </div>
 
               {place.attention && (
-                <div className="flex gap-3 p-3.5 rounded-xl bg-amber-500/8 border border-amber-500/20">
-                  <AlertTriangle size={15} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex gap-3 p-3 rounded-xl bg-amber-500/8 border border-amber-500/20">
+                  <AlertTriangle size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-0.5">
                       {place.attention.title}
