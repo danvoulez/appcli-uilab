@@ -27,7 +27,7 @@ function AgentHero({
 }) {
   return (
     <Link
-      href={`/creation-sessions/new?desk=${placeId}`}
+      href={`/places/${placeId}/agent`}
       className="group relative flex items-center justify-between w-full rounded-2xl overflow-hidden transition-all duration-200 active:scale-[0.99]"
       style={{
         background: [
@@ -71,7 +71,7 @@ export default async function PlacePage({ params }: Props) {
   const agentAction = {
     id: 'agent',
     label: `Talk to ${place.shortLabel} agent`,
-    href: `/creation-sessions/new?desk=${placeId}`,
+    href: `/places/${placeId}/agent`,
   };
 
   return (
