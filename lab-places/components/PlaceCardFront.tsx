@@ -29,7 +29,7 @@ export function PlaceCardFront({ summary }: Props) {
       <div className="absolute inset-x-0 top-0 h-px bg-white/10" />
 
       {/* Content */}
-      <div className="absolute inset-0 flex flex-col justify-between p-4 md:p-5">
+      <div className="absolute inset-0 flex flex-col justify-between p-3.5 md:p-4">
         {/* Top row */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-1.5">
@@ -57,7 +57,7 @@ export function PlaceCardFront({ summary }: Props) {
 
           {/* Title block */}
           <div>
-            <h2 className="text-3xl md:text-[2rem] font-black text-white leading-none tracking-tight drop-shadow-sm">
+            <h2 className="text-[1.7rem] md:text-[1.85rem] font-black text-white leading-none tracking-tight drop-shadow-sm">
               {summary.shortLabel}
             </h2>
             <p className="text-[10px] text-white/45 mt-1 leading-snug line-clamp-2">{summary.shortSummary}</p>
