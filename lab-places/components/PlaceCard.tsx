@@ -18,7 +18,7 @@ export function PlaceCard({ summary }: Props) {
   return (
     <Link
       href={`/places/${summary.id}`}
-      className="block rounded-[20px] overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+      className="block outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded-[20px]"
       aria-label={`Open ${summary.title}`}
     >
       <motion.div

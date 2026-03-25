@@ -7,6 +7,7 @@ import { ActionRail } from '@/components/shell/ActionRail';
 import { InfoPanel } from '@/components/shell/InfoPanel';
 import { ObjectPanel } from '@/components/shell/ObjectPanel';
 import { CollapsibleSection } from '@/components/shell/CollapsibleSection';
+import { MobileActionDock } from '@/components/shell/MobileActionDock';
 import { AlertTriangle, ArrowRight, MessageSquare } from 'lucide-react';
 
 interface Props {
@@ -19,12 +20,10 @@ function AgentHero({
   placeId,
   shortLabel,
   accentColor,
-  compact = false,
 }: {
   placeId: string;
   shortLabel: string;
   accentColor: string;
-  compact?: boolean;
 }) {
   return (
     <Link
@@ -36,7 +35,7 @@ function AgentHero({
           `linear-gradient(135deg, ${accentColor}aa 0%, ${accentColor}77 50%, ${accentColor}44 100%)`,
         ].join(', '),
         border: `1px solid ${accentColor}66`,
-        padding: compact ? '20px 24px' : '24px 28px',
+        padding: '24px 28px',
       }}
     >
       {/* Subtle top shimmer */}
@@ -49,7 +48,7 @@ function AgentHero({
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/55">
           every action · every question
         </p>
-        <p className={`font-black text-white leading-tight tracking-tight ${compact ? 'text-lg' : 'text-xl md:text-2xl'}`}>
+        <p className="text-xl md:text-2xl font-black text-white leading-tight tracking-tight">
           Talk to {shortLabel} agent
         </p>
       </div>
@@ -68,7 +67,15 @@ export default async function PlacePage({ params }: Props) {
 
   const color = place.accentColor;
 
+  // Agent action item for the persistent mobile dock
+  const agentAction = {
+    id: 'agent',
+    label: `Talk to ${place.shortLabel} agent`,
+    href: `/creation-sessions/new?desk=${placeId}`,
+  };
+
   return (
+    <>
     <OperatorShell
       title={place.title}
       descriptor={place.descriptor}
@@ -83,8 +90,9 @@ export default async function PlacePage({ params }: Props) {
             2. Compact health (2-col: lights + signals)
             3. Agent hero CTA
           Then: actions + attention + collapsible inspect
+          pb-32: leaves room for the persistent MobileActionDock
           ══════════════════════════════════════════════════════════════ */}
-      <div className="md:hidden space-y-4 pb-24">
+      <div className="md:hidden space-y-4 pb-32">
 
         {/* 1. Profile banner — aggressive color, immediate orientation */}
         <div
@@ -381,6 +389,10 @@ export default async function PlacePage({ params }: Props) {
       </div>
 
     </OperatorShell>
+
+    {/* Persistent agent dock — always reachable while scrolling inspect data */}
+    <MobileActionDock action={agentAction} accentColor={color} />
+    </>
   );
 }
 
