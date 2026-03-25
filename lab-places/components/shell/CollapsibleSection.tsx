@@ -21,7 +21,7 @@ export function CollapsibleSection({ title, children, defaultOpen = false, accen
     <div className="rounded-xl border border-white/[0.07] overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/[0.025] transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-white/[0.025] transition-colors"
       >
         <span
           className="text-[10px] font-bold uppercase tracking-[0.14em]"
@@ -35,7 +35,7 @@ export function CollapsibleSection({ title, children, defaultOpen = false, accen
         />
       </button>
       {open && (
-        <div className="px-4 pb-4 pt-1 border-t border-white/[0.05] space-y-3">
+        <div className="px-4 pb-3 pt-1 border-t border-white/[0.05] space-y-2.5">
           {children}
         </div>
       )}

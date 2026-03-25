@@ -15,23 +15,23 @@ export default function Home() {
 
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
-        <header className="flex-shrink-0 px-5 md:px-8 pt-7 pb-5">
+        <header className="flex-shrink-0 px-4 md:px-8 pt-5 pb-4">
           <div className="flex items-baseline justify-between max-w-5xl mx-auto w-full">
             <div>
-              <h1 className="text-lg font-black tracking-tight text-white leading-none">LAB Places</h1>
-              <p className="text-[10px] text-white/25 mt-1 font-semibold tracking-[0.15em] uppercase">
+              <h1 className="text-base font-black tracking-tight text-white leading-none">LAB Places</h1>
+              <p className="text-[9px] text-white/22 mt-0.5 font-semibold tracking-[0.15em] uppercase">
                 Operational Cockpit
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
-              <span className="text-[11px] text-white/30 font-semibold tracking-wide">9 places active</span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+              <span className="text-[10px] text-white/28 font-semibold tracking-wide">9 active</span>
             </div>
           </div>
         </header>
 
         {/* Grid */}
-        <div className="flex-1 px-3 md:px-6 lg:px-8 pb-8 max-w-5xl mx-auto w-full">
+        <div className="flex-1 px-3 md:px-6 lg:px-8 pb-6 max-w-5xl mx-auto w-full">
           <PlaceGrid />
         </div>
       </div>

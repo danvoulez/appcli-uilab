@@ -237,7 +237,7 @@ function CardView({ card, color }: { card: AgentCard; color: string }) {
       {card.items.map((item, i) => (
         <div
           key={item.label}
-          className={`flex items-center justify-between px-3 py-2 ${i < card.items.length - 1 ? 'border-b border-white/[0.04]' : ''}`}
+          className={`flex items-center justify-between px-3 py-1.5 ${i < card.items.length - 1 ? 'border-b border-white/[0.04]' : ''}`}
         >
           <div className="flex items-center gap-2 min-w-0">
             {item.status && (
@@ -270,7 +270,7 @@ function AgentBubble({ msg, color }: { msg: ChatMsg; color: string }) {
       </div>
       <div className="space-y-0.5 min-w-0">
         <div
-          className="px-4 py-3 rounded-2xl rounded-tl-sm border"
+          className="px-4 py-2.5 rounded-2xl rounded-tl-sm border"
           style={{
             background: 'rgba(255,255,255,0.04)',
             borderColor: 'rgba(255,255,255,0.07)',
@@ -289,7 +289,7 @@ function UserBubble({ msg, color }: { msg: ChatMsg; color: string }) {
   return (
     <div className="flex justify-end">
       <div
-        className="max-w-[80%] px-4 py-3 rounded-2xl rounded-tr-sm text-sm text-white leading-relaxed"
+        className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm text-white leading-relaxed"
         style={{
           background: `linear-gradient(135deg, ${color}aa 0%, ${color}77 100%)`,
         }}
@@ -376,7 +376,7 @@ export function AgentChat({ place }: { place: PlaceDetail }) {
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header
-        className="relative flex-shrink-0 flex items-center gap-3 px-4 py-3.5 z-10"
+        className="relative flex-shrink-0 flex items-center gap-3 px-4 py-3 z-10"
         style={{
           background: [
             `radial-gradient(ellipse 100% 120% at 0% 50%, ${color}bb 0%, transparent 55%)`,
@@ -425,7 +425,7 @@ export function AgentChat({ place }: { place: PlaceDetail }) {
       {/* ── Message thread ───────────────────────────────────────────────── */}
       <div
         ref={threadRef}
-        className="flex-1 overflow-y-auto px-4 py-5 space-y-4 scrollbar-none"
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-none"
       >
         {messages.map((msg) =>
           msg.role === 'agent' ? (
@@ -445,7 +445,7 @@ export function AgentChat({ place }: { place: PlaceDetail }) {
               ✦
             </div>
             <div
-              className="px-4 py-3 rounded-2xl rounded-tl-sm border"
+              className="px-4 py-2.5 rounded-2xl rounded-tl-sm border"
               style={{
                 background: 'rgba(255,255,255,0.04)',
                 borderColor: 'rgba(255,255,255,0.07)',
@@ -482,7 +482,7 @@ export function AgentChat({ place }: { place: PlaceDetail }) {
 
       {/* ── Input bar ────────────────────────────────────────────────────── */}
       <div
-        className="flex-shrink-0 px-4 pb-8 pt-3 border-t border-white/[0.06] relative z-10"
+        className="flex-shrink-0 px-4 pb-6 pt-2.5 border-t border-white/[0.06] relative z-10"
         style={{ background: 'rgba(14,14,14,0.98)' }}
       >
         <div className="flex gap-2.5 items-end max-w-2xl mx-auto">
@@ -493,7 +493,7 @@ export function AgentChat({ place }: { place: PlaceDetail }) {
             onKeyDown={handleKey}
             placeholder={`Ask ${place.shortLabel} agent anything…`}
             rows={1}
-            className="flex-1 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-3 text-sm text-white placeholder-white/28 resize-none outline-none transition-colors scrollbar-none leading-relaxed"
+            className="flex-1 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-2.5 text-sm text-white placeholder-white/28 resize-none outline-none transition-colors scrollbar-none leading-relaxed"
             style={{
               maxHeight: '120px',
               // Subtle focus ring using accent color
