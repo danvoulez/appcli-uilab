@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { mockPlaceDetails } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import { StatusChip } from '@/components/StatusChip';
 import { ActionRail } from '@/components/shell/ActionRail';
 import { InfoPanel } from '@/components/shell/InfoPanel';
@@ -52,7 +52,7 @@ function AgentHero({ placeId, shortLabel, color }: { placeId: string; shortLabel
 
 export default async function PlacePage({ params }: Props) {
   const { placeId } = await params;
-  const place = mockPlaceDetails.find((p) => p.id === placeId);
+  const place = await queryClient.getPlace(placeId);
   if (!place) notFound();
 
   const color = place.accentColor;
@@ -319,5 +319,6 @@ export default async function PlacePage({ params }: Props) {
 }
 
 export async function generateStaticParams() {
-  return mockPlaceDetails.map((p) => ({ placeId: p.id }));
+  const places = await queryClient.listPlaces();
+  return places.map((p) => ({ placeId: p.id }));
 }

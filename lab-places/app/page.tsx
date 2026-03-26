@@ -1,7 +1,9 @@
 import { PlaceGrid } from '@/components/PlaceGrid';
-import { mockPlaceSummaries } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 
-export default function Home() {
+export default async function Home() {
+  const summaries = await queryClient.listPlaces();
+
   return (
     <main className="min-h-screen bg-[#0e0e0e]">
       {/* Subtle dot-grid background texture */}
@@ -26,14 +28,16 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-              <span className="text-[10px] text-white/28 font-semibold tracking-wide">{mockPlaceSummaries.length} active</span>
+              <span className="text-[10px] text-white/28 font-semibold tracking-wide">
+                {summaries.length} active
+              </span>
             </div>
           </div>
         </header>
 
         {/* Grid */}
         <div className="flex-1 px-3 md:px-6 lg:px-8 pb-6 max-w-5xl mx-auto w-full">
-          <PlaceGrid />
+          <PlaceGrid summaries={summaries} />
         </div>
       </div>
     </main>

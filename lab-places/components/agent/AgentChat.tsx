@@ -318,28 +318,7 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
 
   const quickPrompts = getQuickPrompts(place);
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
-
-  // Auto-send action query passed from ActionRail (e.g. ?q=Retry+failed+jobs)
-  useEffect(() => {
-    if (initialQuery) {
-      const timer = setTimeout(() => handleSend(initialQuery), 600);
-      return () => clearTimeout(timer);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Textarea auto-resize
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  }, [input]);
-
+  // handleSend must be declared before the effects that reference it
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim() || isTyping) return;
@@ -349,9 +328,8 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
       const userMsg: ChatMsg = { id: `u-${Date.now()}`, role: 'user', text: text.trim() };
       setMessages((prev) => [...prev, userMsg]);
 
-      // Typing indicator → response
       setIsTyping(true);
-      const delay = 700 + Math.random() * 500;
+      const responseDelay = 700 + Math.random() * 500;
       setTimeout(() => {
         const { text: respText, card } = respond(place, text);
         setMessages((prev) => [
@@ -359,7 +337,7 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
           { id: `a-${Date.now()}`, role: 'agent', text: respText, card },
         ]);
         setIsTyping(false);
-      }, delay);
+      }, responseDelay);
     },
     [isTyping, place]
   );
@@ -371,8 +349,35 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
     }
   };
 
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping]);
+
+  // Auto-send action query from ActionRail (?q=<action label>)
+  // Fires once on mount — handleSend is stable on first render (isTyping=false)
+  const initialQueryRef = useRef(initialQuery);
+  useEffect(() => {
+    const q = initialQueryRef.current;
+    if (!q) return;
+    const timer = setTimeout(() => handleSend(q), 600);
+    return () => clearTimeout(timer);
+  // handleSend is stable on first render; this fires once intentionally
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Textarea auto-resize
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input]);
+
   return (
-    <div className="flex flex-col h-screen bg-[#0e0e0e] overflow-hidden">
+    // 100dvh: dynamic viewport height — shrinks when mobile keyboard opens,
+    // keeping the input bar visible. Falls back to 100vh on old browsers.
+    <div className="flex flex-col bg-[#0e0e0e] overflow-hidden" style={{ height: '100dvh' }}>
       {/* Dot-grid texture */}
       <div
         className="fixed inset-0 pointer-events-none opacity-[0.02]"

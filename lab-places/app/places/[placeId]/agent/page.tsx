@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { mockPlaceDetails } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import { AgentChat } from '@/components/agent/AgentChat';
 
 interface Props {
@@ -10,12 +10,13 @@ interface Props {
 export default async function AgentPage({ params, searchParams }: Props) {
   const { placeId } = await params;
   const { q } = await searchParams;
-  const place = mockPlaceDetails.find((p) => p.id === placeId);
+  const place = await queryClient.getPlace(placeId);
   if (!place) notFound();
   // q comes from ActionRail non-href actions: ?q=<action label>
   return <AgentChat place={place} initialQuery={q} />;
 }
 
 export async function generateStaticParams() {
-  return mockPlaceDetails.map((p) => ({ placeId: p.id }));
+  const places = await queryClient.listPlaces();
+  return places.map((p) => ({ placeId: p.id }));
 }
