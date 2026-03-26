@@ -70,9 +70,10 @@ html::-webkit-scrollbar {
   padding-bottom: max(10px, var(--sab-max));
 }
 .pb-safe-input {
-  /* For input bars: base 24px + safe area. Keeps input above home indicator.
-     Uses dynamic --sab (not max) so the input bar tracks the actual visible area. */
-  padding-bottom: max(24px, calc(var(--sab) + 12px));
+  /* Input bar bottom padding. Uses dynamic --sab (not max) so when the virtual
+     keyboard is open and covering the home indicator, --sab drops to ~0 and the
+     base kicks in — avoids the phantom gap between input and keyboard edge. */
+  padding-bottom: max(6px, var(--sab));
 }
 
 /* Smooth focus ring */
