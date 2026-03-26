@@ -3,6 +3,17 @@
 :root {
   --background: #0e0e0e;
   --foreground: #f0f0f0;
+
+  /* Safe area insets — only non-zero when viewport-fit=cover is active.
+     Use these CSS vars throughout rather than env() directly for clarity.
+     safe-area-max-inset-* are new in iOS 26 / Safari 26: static maximums
+     (constants) — useful for layout calculations that need stability. */
+  --sat:     env(safe-area-inset-top,    0px);
+  --sab:     env(safe-area-inset-bottom, 0px);
+  --sal:     env(safe-area-inset-left,   0px);
+  --sar:     env(safe-area-inset-right,  0px);
+  --sat-max: env(safe-area-max-inset-top,    var(--sat));
+  --sab-max: env(safe-area-max-inset-bottom, var(--sab));
 }
 
 @theme inline {
@@ -18,25 +29,44 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent rubber-band overscroll revealing the dark background on macOS */
+  overscroll-behavior: none;
 }
 
-/* Structural: prevent native scrollbar ever showing on the body.
-   Each page that needs scroll manages it through its own overflow container
-   using .scrollbar-none. This kills the white scrollbar globally. */
+/* Structural: prevent native scrollbar from ever showing on the body.
+   Each page that needs scroll manages it via its own overflow container
+   with .scrollbar-none. */
 html {
   scrollbar-width: none;
+  /* Prevent rubber-band overscroll on iOS Safari */
+  overscroll-behavior: none;
 }
 html::-webkit-scrollbar {
   display: none;
 }
 
-/* Hide scrollbar but keep scroll */
+/* Hide scrollbar but keep scroll functionality */
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* Safe area padding utilities.
+   pt-safe / pb-safe add the safe area inset on top of base padding.
+   These work correctly on iPhone Dynamic Island, home indicator bar,
+   and iOS 26 new tab strip layouts. */
+.pt-safe {
+  padding-top: max(12px, var(--sat));
+}
+.pb-safe {
+  padding-bottom: max(10px, var(--sab));
+}
+.pb-safe-input {
+  /* For input bars: base 24px + safe area. Keeps input above home indicator. */
+  padding-bottom: max(24px, calc(var(--sab) + 12px));
 }
 
 /* Smooth focus ring */

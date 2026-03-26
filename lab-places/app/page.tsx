@@ -18,7 +18,7 @@ export default async function Home() {
 
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
-        <header className="flex-shrink-0 px-4 md:px-8 pt-5 pb-4">
+        <header className="flex-shrink-0 pt-safe px-4 md:px-8 pb-4">
           <div className="flex items-baseline justify-between max-w-5xl mx-auto w-full">
             <div>
               <h1 className="text-base font-black tracking-tight text-white leading-none">LAB Places</h1>

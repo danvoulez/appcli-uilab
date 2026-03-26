@@ -58,7 +58,7 @@ export default async function PlacePage({ params }: Props) {
   const color = place.accentColor;
 
   const Header = (
-    <header className="flex-shrink-0 px-4 md:px-8 pt-3 pb-2.5 border-b border-white/[0.06]">
+    <header className="flex-shrink-0 pt-safe px-4 md:px-8 pb-2.5 border-b border-white/[0.06]">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 mb-1.5">
         <Link
@@ -103,7 +103,7 @@ export default async function PlacePage({ params }: Props) {
         {Header}
 
         {/* Content — flex column, strictly proportional, no overflow property */}
-        <div className="relative z-10 flex-1 min-h-0 flex flex-col px-3 pt-2 pb-2.5 gap-1.5">
+        <div className="relative z-10 flex-1 min-h-0 flex flex-col px-3 pt-2 pb-safe gap-1.5">
 
           {/* 1. Color banner — expands to fill remaining space */}
           <div

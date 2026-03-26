@@ -390,7 +390,7 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header
-        className="relative flex-shrink-0 flex items-center gap-3 px-4 py-3 z-10"
+        className="relative flex-shrink-0 flex items-center gap-3 pt-safe px-4 pb-3 z-10"
         style={{
           background: [
             `radial-gradient(ellipse 100% 120% at 0% 50%, ${color}bb 0%, transparent 55%)`,
@@ -496,7 +496,7 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
 
       {/* ── Input bar ────────────────────────────────────────────────────── */}
       <div
-        className="flex-shrink-0 px-4 pb-6 pt-2.5 border-t border-white/[0.06] relative z-10"
+        className="flex-shrink-0 px-4 pb-safe-input pt-2.5 border-t border-white/[0.06] relative z-10"
         style={{ background: 'rgba(14,14,14,0.98)' }}
       >
         <div className="flex gap-2.5 items-end max-w-2xl mx-auto">
