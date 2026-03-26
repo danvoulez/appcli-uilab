@@ -10,6 +10,11 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: '#0e0e0e',
+  colorScheme: 'dark',
+  // resizes-visual: only the visual viewport shrinks when virtual keyboard opens,
+  // so fixed/sticky elements stay put and the layout box is unchanged.
+  // This is the correct mode for apps that manage their own scroll containers.
+  interactiveWidget: 'resizes-visual',
 };
 
 export const metadata: Metadata = {
