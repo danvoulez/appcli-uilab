@@ -1,35 +1,12 @@
 import { ImageResponse } from 'next/og';
+import { iconGrid } from '../_icon-grid';
 
 export const runtime = 'edge';
 
+// 512×512: 17+148+17+148+17+148+17=512 ✓
 export function GET() {
   return new ImageResponse(
-    (
-      <div
-        style={{
-          width: 512,
-          height: 512,
-          background: '#0e0e0e',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 108,
-        }}
-      >
-        <div
-          style={{
-            color: '#ffffff',
-            fontSize: 240,
-            fontWeight: 900,
-            fontFamily: 'system-ui, sans-serif',
-            letterSpacing: '-10px',
-            lineHeight: 1,
-          }}
-        >
-          L
-        </div>
-      </div>
-    ),
-    { width: 512, height: 512 },
+    iconGrid({ size: 512, padding: 17, gap: 17, cell: 148, radius: 112, cellRadius: 26 }),
+    { width: 512, height: 512 }
   );
 }

@@ -4,6 +4,40 @@
 
 export type StatusLevel = 'healthy' | 'warning' | 'degraded' | 'syncing' | 'attention' | 'offline';
 
+// ─── File attachments ─────────────────────────────────────────────────────
+
+/** Broad category used for icon selection and preview routing. */
+export type FileKind =
+  | 'image'     // image/*
+  | 'pdf'       // application/pdf
+  | 'text'      // text/* | application/json
+  | 'video'     // video/*
+  | 'audio'     // audio/*
+  | 'archive'   // zip, tar, gz, etc.
+  | 'document'  // docx, xlsx, pptx, odt…
+  | 'unknown';
+
+/**
+ * Represents a file that has been attached to a chat message,
+ * either by the user (client-side, objectUrl populated) or received
+ * from the agent backend (fileRef populated with a pre-signed URL).
+ *
+ * Both sides of the seam use this same shape; the query-client / command-client
+ * fill `fileRef` when the server provides a URL.
+ */
+export interface AttachedFile {
+  /** Stable per-file ID for React keys and deduplication. */
+  id: string;
+  name: string;
+  size: number;      // bytes
+  mimeType: string;
+  kind: FileKind;
+  /** Created with URL.createObjectURL — client-side only; revoke on remove. */
+  objectUrl?: string;
+  /** Pre-signed URL or content reference from the server. */
+  fileRef?: string;
+}
+
 export interface StatusLight {
   label: string;
   status: 'on' | 'warn' | 'off';
