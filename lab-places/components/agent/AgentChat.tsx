@@ -2,10 +2,57 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Send, ChevronRight, AlertTriangle } from 'lucide-react';
-import type { PlaceDetail } from '@/lib/types';
+import {
+  ArrowLeft, Send, ChevronRight, AlertTriangle,
+  Plus, X, Camera, FileImage, FileVideo, FileMusic,
+  FileText, File as GenericFile, Archive, FileQuestion,
+} from 'lucide-react';
+import type { PlaceDetail, AttachedFile, FileKind } from '@/lib/types';
+import { FilePreviewSheet } from './FilePreviewSheet';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── File utilities ──────────────────────────────────────────────────────────
+
+function getFileKind(mimeType: string): FileKind {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType === 'application/pdf') return 'pdf';
+  if (mimeType.startsWith('text/') || mimeType === 'application/json') return 'text';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (/\/(zip|x-zip|x-tar|gzip|x-gzip|x-bzip2|x-rar|x-7z-compressed)/.test(mimeType)) return 'archive';
+  if (/\/(msword|vnd\.openxmlformats|vnd\.ms-excel|vnd\.ms-powerpoint|vnd\.oasis)/.test(mimeType)) return 'document';
+  return 'unknown';
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+function FileKindIcon({
+  kind,
+  size = 14,
+  className = '',
+}: {
+  kind: FileKind;
+  size?: number;
+  className?: string;
+}) {
+  const p = { size, className };
+  switch (kind) {
+    case 'image':    return <FileImage {...p} />;
+    case 'video':    return <FileVideo {...p} />;
+    case 'audio':    return <FileMusic {...p} />;
+    case 'archive':  return <Archive {...p} />;
+    case 'unknown':  return <FileQuestion {...p} />;
+    case 'pdf':
+    case 'text':
+    case 'document': return <FileText {...p} />;
+    default:         return <GenericFile {...p} />;
+  }
+}
+
+// ─── Chat types ───────────────────────────────────────────────────────────────
 
 interface CardItem {
   label: string;
@@ -25,6 +72,7 @@ interface ChatMsg {
   role: 'user' | 'agent';
   text: string;
   card?: AgentCard;
+  files?: AttachedFile[];
 }
 
 // ─── Status dot colour map ───────────────────────────────────────────────────
@@ -37,9 +85,23 @@ const statusDot: Record<string, string> = {
 };
 
 // ─── Mock response engine ────────────────────────────────────────────────────
-// Keyword-matches against live place data — signals, panels, attention, actions.
+// Swap this call for commandClient.sendChatMessage() when the real backend is ready.
 
-function respond(place: PlaceDetail, raw: string): Pick<ChatMsg, 'text' | 'card'> {
+function respond(
+  place: PlaceDetail,
+  raw: string,
+  files?: AttachedFile[]
+): Pick<ChatMsg, 'text' | 'card'> {
+  // ── File attachment acknowledgement ─────────────────────────────────────
+  if (files && files.length > 0) {
+    const label = files.length === 1
+      ? `"${files[0].name}"`
+      : `${files.length} files`;
+    return {
+      text: `Received ${label}${raw.trim() ? ` — and your message.` : '.'} Processing…`,
+    };
+  }
+
   const q = raw.toLowerCase();
 
   // ── Panel keywords ──────────────────────────────────────────────────────
@@ -89,7 +151,7 @@ function respond(place: PlaceDetail, raw: string): Pick<ChatMsg, 'text' | 'card'
     };
   }
 
-  // ── Attention / alerts / issues ─────────────────────────────────────────
+  // ── Attention / alerts ──────────────────────────────────────────────────
   if (/alert|warn|issue|problem|attention|broken|fail|error|incident/.test(q)) {
     if (place.attention) {
       return {
@@ -119,7 +181,7 @@ function respond(place: PlaceDetail, raw: string): Pick<ChatMsg, 'text' | 'card'
     };
   }
 
-  // ── Overview / describe / what is ──────────────────────────────────────
+  // ── Overview / describe ─────────────────────────────────────────────────
   if (/what|describ|overview|tell|explain|about|summar/.test(q)) {
     return { text: place.overview };
   }
@@ -131,12 +193,7 @@ function respond(place: PlaceDetail, raw: string): Pick<ChatMsg, 'text' | 'card'
       if (action.href) {
         return {
           text: `I can take you to "${action.label}" directly.`,
-          card: {
-            type: 'link',
-            title: action.label,
-            items: [],
-            href: action.href,
-          },
+          card: { type: 'link', title: action.label, items: [], href: action.href },
         };
       }
       return {
@@ -148,38 +205,33 @@ function respond(place: PlaceDetail, raw: string): Pick<ChatMsg, 'text' | 'card'
   // ── Default ─────────────────────────────────────────────────────────────
   const defaults = [
     `${place.overview} What would you like to do?`,
-    `I'm watching ${place.title}. Status is **${place.status}**. Ask me about signals, panels, or any action you want to take.`,
+    `I'm watching ${place.title}. Status is **${place.status}**. Ask me about signals, panels, or any action.`,
     `You can ask me about ${place.primarySignals.map((s) => s.label).join(', ')}, or any operational task.`,
   ];
   return { text: defaults[Math.floor(Math.random() * defaults.length)] };
 }
 
-// ─── Quick prompts ───────────────────────────────────────────────────────────
+// ─── Quick prompts ────────────────────────────────────────────────────────────
 
 function getQuickPrompts(place: PlaceDetail): string[] {
   const prompts: string[] = [];
-  // First primary action
   const primary = place.actions.find((a) => a.variant === 'primary');
   if (primary) prompts.push(primary.label);
-  // Attention or generic health
   if (place.attention) {
     prompts.push('What needs attention?');
   } else {
     prompts.push('Show key signals');
   }
-  // First panel name as a question
   if (place.panels[0]) prompts.push(`Check ${place.panels[0].title.toLowerCase()}`);
   return prompts.slice(0, 3);
 }
-
-// ─── Greeting ────────────────────────────────────────────────────────────────
 
 function getGreeting(place: PlaceDetail): string {
   const first = place.overview.split(/[.!?]/)[0].trim();
   return `I'm the ${place.shortLabel} agent. ${first}. What would you like to do?`;
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function TypingDots() {
   return (
@@ -225,7 +277,6 @@ function CardView({ card, color }: { card: AgentCard; color: string }) {
     );
   }
 
-  // type === 'data'
   return (
     <div
       className="mt-2 rounded-xl border overflow-hidden"
@@ -252,8 +303,35 @@ function CardView({ card, color }: { card: AgentCard; color: string }) {
   );
 }
 
-function AgentBubble({ msg, color }: { msg: ChatMsg; color: string }) {
-  // Bold **text** formatting — simple inline markdown
+/** Small chip showing an attached file in a message bubble. */
+function FileBubbleChip({
+  file,
+  onPreview,
+}: {
+  file: AttachedFile;
+  onPreview: (f: AttachedFile) => void;
+}) {
+  return (
+    <button
+      onClick={() => onPreview(file)}
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.07] border border-white/[0.09] hover:bg-white/[0.11] transition-colors max-w-[200px]"
+    >
+      <FileKindIcon kind={file.kind} size={11} className="flex-shrink-0 text-white/40" />
+      <span className="text-[11px] text-white/60 truncate">{file.name}</span>
+      <span className="text-[10px] text-white/25 flex-shrink-0">{formatSize(file.size)}</span>
+    </button>
+  );
+}
+
+function AgentBubble({
+  msg,
+  color,
+  onPreview,
+}: {
+  msg: ChatMsg;
+  color: string;
+  onPreview: (f: AttachedFile) => void;
+}) {
   const renderText = (text: string) =>
     text.split(/\*\*(.+?)\*\*/g).map((part, i) =>
       i % 2 === 1 ? <strong key={i} className="text-white font-semibold">{part}</strong> : part
@@ -261,7 +339,6 @@ function AgentBubble({ msg, color }: { msg: ChatMsg; color: string }) {
 
   return (
     <div className="flex gap-2.5 max-w-[88%]">
-      {/* Agent avatar */}
       <div
         className="flex-shrink-0 w-6 h-6 rounded-full mt-0.5 flex items-center justify-center text-[9px] font-black text-white/80"
         style={{ background: `${color}99` }}
@@ -280,27 +357,50 @@ function AgentBubble({ msg, color }: { msg: ChatMsg; color: string }) {
           <p className="text-sm text-white/82 leading-relaxed">{renderText(msg.text)}</p>
         </div>
         {msg.card && <CardView card={msg.card} color={color} />}
+        {msg.files && msg.files.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {msg.files.map((f) => (
+              <FileBubbleChip key={f.id} file={f} onPreview={onPreview} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function UserBubble({ msg, color }: { msg: ChatMsg; color: string }) {
+function UserBubble({
+  msg,
+  color,
+  onPreview,
+}: {
+  msg: ChatMsg;
+  color: string;
+  onPreview: (f: AttachedFile) => void;
+}) {
   return (
-    <div className="flex justify-end">
-      <div
-        className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm text-white leading-relaxed"
-        style={{
-          background: `linear-gradient(135deg, ${color}aa 0%, ${color}77 100%)`,
-        }}
-      >
-        {msg.text}
-      </div>
+    <div className="flex flex-col items-end gap-1.5">
+      {/* File chips above the text bubble */}
+      {msg.files && msg.files.length > 0 && (
+        <div className="flex flex-wrap justify-end gap-1.5 max-w-[85%]">
+          {msg.files.map((f) => (
+            <FileBubbleChip key={f.id} file={f} onPreview={onPreview} />
+          ))}
+        </div>
+      )}
+      {msg.text && (
+        <div
+          className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm text-white leading-relaxed"
+          style={{ background: `linear-gradient(135deg, ${color}aa 0%, ${color}77 100%)` }}
+        >
+          {msg.text}
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initialQuery?: string }) {
   const color = place.accentColor;
@@ -308,38 +408,84 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
   const [messages, setMessages] = useState<ChatMsg[]>([
     { id: 'greeting', role: 'agent', text: getGreeting(place) },
   ]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [input, setInput]             = useState('');
+  const [isTyping, setIsTyping]       = useState(false);
   const [showPrompts, setShowPrompts] = useState(!initialQuery);
 
-  const bottomRef  = useRef<HTMLDivElement>(null);
-  const inputRef   = useRef<HTMLTextAreaElement>(null);
-  const threadRef  = useRef<HTMLDivElement>(null);
+  // ── File state ─────────────────────────────────────────────────────────────
+  const [pendingFiles, setPendingFiles]   = useState<AttachedFile[]>([]);
+  const [previewFile, setPreviewFile]     = useState<AttachedFile | null>(null);
+  const [showFilePicker, setShowFilePicker] = useState(false);
+
+  // ── Refs ───────────────────────────────────────────────────────────────────
+  const bottomRef    = useRef<HTMLDivElement>(null);
+  const inputRef     = useRef<HTMLTextAreaElement>(null);
+  const threadRef    = useRef<HTMLDivElement>(null);
+  // Three hidden inputs — cover: any file, photos/video, camera
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const imageInputRef  = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const quickPrompts = getQuickPrompts(place);
 
-  // handleSend must be declared before the effects that reference it
+  // ── File handlers ──────────────────────────────────────────────────────────
+
+  const handleFiles = useCallback((fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const next: AttachedFile[] = Array.from(fileList).map((f) => ({
+      id: `file-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: f.name,
+      size: f.size,
+      mimeType: f.type || 'application/octet-stream',
+      kind: getFileKind(f.type),
+      objectUrl: URL.createObjectURL(f),
+    }));
+    setPendingFiles((prev) => [...prev, ...next]);
+    setShowFilePicker(false);
+  }, []);
+
+  const removeFile = useCallback((id: string) => {
+    setPendingFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (target?.objectUrl) URL.revokeObjectURL(target.objectUrl);
+      return prev.filter((f) => f.id !== id);
+    });
+  }, []);
+
+  // ── Send handler — declared before effects that reference it ───────────────
+
   const handleSend = useCallback(
     (text: string) => {
-      if (!text.trim() || isTyping) return;
+      if (!text.trim() && pendingFiles.length === 0) return;
+      if (isTyping) return;
+
       setShowPrompts(false);
       setInput('');
 
-      const userMsg: ChatMsg = { id: `u-${Date.now()}`, role: 'user', text: text.trim() };
+      const filesToSend = [...pendingFiles];
+      setPendingFiles([]);
+
+      const userMsg: ChatMsg = {
+        id: `u-${Date.now()}`,
+        role: 'user',
+        text: text.trim(),
+        files: filesToSend.length > 0 ? filesToSend : undefined,
+      };
       setMessages((prev) => [...prev, userMsg]);
 
       setIsTyping(true);
-      const responseDelay = 700 + Math.random() * 500;
+      const delay = 700 + Math.random() * 500;
       setTimeout(() => {
-        const { text: respText, card } = respond(place, text);
+        // TODO: replace respond() with commandClient.sendChatMessage(place.id, text, filesToSend)
+        const { text: respText, card } = respond(place, text, filesToSend);
         setMessages((prev) => [
           ...prev,
           { id: `a-${Date.now()}`, role: 'agent', text: respText, card },
         ]);
         setIsTyping(false);
-      }, responseDelay);
+      }, delay);
     },
-    [isTyping, place]
+    [isTyping, pendingFiles, place]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -349,20 +495,21 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
     }
   };
 
-  // Auto-scroll to bottom on new messages
+  // ── Effects ────────────────────────────────────────────────────────────────
+
+  // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // Auto-send action query from ActionRail (?q=<action label>)
-  // Fires once on mount — handleSend is stable on first render (isTyping=false)
+  // Auto-send initial action query from ActionRail (?q=<label>)
   const initialQueryRef = useRef(initialQuery);
   useEffect(() => {
     const q = initialQueryRef.current;
     if (!q) return;
     const timer = setTimeout(() => handleSend(q), 600);
     return () => clearTimeout(timer);
-  // handleSend is stable on first render; this fires once intentionally
+  // handleSend is stable on first render; fires once intentionally
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -374,9 +521,11 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   }, [input]);
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const canSend = (input.trim().length > 0 || pendingFiles.length > 0) && !isTyping;
+
   return (
-    // 100dvh: dynamic viewport height — shrinks when mobile keyboard opens,
-    // keeping the input bar visible. Falls back to 100vh on old browsers.
     <div className="flex flex-col bg-[#0e0e0e] overflow-hidden" style={{ height: '100dvh' }}>
       {/* Dot-grid texture */}
       <div
@@ -400,11 +549,8 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
           borderBottom: `1px solid ${color}44`,
         }}
       >
-        {/* Top accent line */}
-        <div
-          className="absolute top-0 left-0 right-0 h-[1px]"
-          style={{ background: `linear-gradient(90deg, ${color}ff, ${color}aa 40%, transparent)` }}
-        />
+        <div className="absolute top-0 left-0 right-0 h-[1px]"
+          style={{ background: `linear-gradient(90deg, ${color}ff, ${color}aa 40%, transparent)` }} />
 
         <Link
           href={`/places/${place.id}`}
@@ -426,7 +572,6 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
           <p className="text-[10px] text-white/45 mt-0.5">Agent · always on</p>
         </div>
 
-        {/* Live indicator */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <div
             className="w-1.5 h-1.5 rounded-full animate-pulse"
@@ -443,13 +588,12 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
       >
         {messages.map((msg) =>
           msg.role === 'agent' ? (
-            <AgentBubble key={msg.id} msg={msg} color={color} />
+            <AgentBubble key={msg.id} msg={msg} color={color} onPreview={setPreviewFile} />
           ) : (
-            <UserBubble key={msg.id} msg={msg} color={color} />
+            <UserBubble key={msg.id} msg={msg} color={color} onPreview={setPreviewFile} />
           )
         )}
 
-        {/* Typing indicator */}
         {isTyping && (
           <div className="flex gap-2.5 max-w-[88%]">
             <div
@@ -471,7 +615,6 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
           </div>
         )}
 
-        {/* Quick prompts — visible until first user message */}
         {showPrompts && !isTyping && (
           <div className="flex flex-wrap gap-2 pt-1">
             {quickPrompts.map((p) => (
@@ -479,11 +622,7 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
                 key={p}
                 onClick={() => handleSend(p)}
                 className="px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 active:scale-[0.96]"
-                style={{
-                  border: `1px solid ${color}55`,
-                  color: `${color}ee`,
-                  background: `${color}12`,
-                }}
+                style={{ border: `1px solid ${color}55`, color: `${color}ee`, background: `${color}12` }}
               >
                 {p}
               </button>
@@ -496,10 +635,99 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
 
       {/* ── Input bar ────────────────────────────────────────────────────── */}
       <div
-        className="flex-shrink-0 px-4 pb-safe-input pt-2.5 border-t border-white/[0.06] relative z-10"
+        className="flex-shrink-0 px-4 pb-safe-input pt-2 border-t border-white/[0.06] relative z-10"
         style={{ background: 'rgba(14,14,14,0.98)' }}
       >
+        {/* Pending file chips — horizontal scroll strip */}
+        {pendingFiles.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-2 max-w-2xl mx-auto">
+            {pendingFiles.map((f) => (
+              <div
+                key={f.id}
+                className="flex-shrink-0 flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-xl bg-white/[0.07] border border-white/[0.10] max-w-[200px]"
+              >
+                <FileKindIcon kind={f.kind} size={12} className="flex-shrink-0 text-white/45" />
+                <span className="text-xs text-white/65 truncate">{f.name}</span>
+                <span className="text-[10px] text-white/25 flex-shrink-0">{formatSize(f.size)}</span>
+                <button
+                  onClick={() => removeFile(f.id)}
+                  className="flex-shrink-0 ml-0.5 w-4 h-4 flex items-center justify-center rounded-full hover:bg-white/15 transition-colors"
+                  aria-label={`Remove ${f.name}`}
+                >
+                  <X size={10} className="text-white/40" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Input row: [+] [textarea] [send] */}
         <div className="flex gap-2.5 items-end max-w-2xl mx-auto">
+
+          {/* + button with file picker popover */}
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={() => setShowFilePicker((v) => !v)}
+              className="w-10 h-10 rounded-full flex items-center justify-center border transition-all duration-150 active:scale-95"
+              style={{
+                background: showFilePicker ? `${color}22` : 'rgba(255,255,255,0.05)',
+                borderColor: showFilePicker ? `${color}55` : 'rgba(255,255,255,0.10)',
+              }}
+              aria-label="Attach file"
+              aria-expanded={showFilePicker}
+            >
+              <Plus
+                size={17}
+                className="transition-transform duration-200"
+                style={{
+                  color: showFilePicker ? color : 'rgba(255,255,255,0.55)',
+                  transform: showFilePicker ? 'rotate(45deg)' : 'rotate(0deg)',
+                }}
+              />
+            </button>
+
+            {/* Popover menu */}
+            {showFilePicker && (
+              <>
+                {/* Invisible backdrop — click to close */}
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setShowFilePicker(false)}
+                />
+                <div
+                  className="absolute bottom-full left-0 mb-2.5 z-40 flex flex-col gap-0.5 rounded-2xl overflow-hidden shadow-2xl border border-white/[0.10]"
+                  style={{ background: '#242426', minWidth: 190 }}
+                >
+                  {/* Option: any file */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-3 px-4 py-3 text-left text-sm text-white/80 hover:bg-white/[0.07] transition-colors"
+                  >
+                    <GenericFile size={15} className="text-white/40 flex-shrink-0" />
+                    <span>Browse files</span>
+                  </button>
+                  {/* Option: photos & video */}
+                  <button
+                    onClick={() => imageInputRef.current?.click()}
+                    className="flex items-center gap-3 px-4 py-3 text-left text-sm text-white/80 hover:bg-white/[0.07] transition-colors"
+                  >
+                    <FileImage size={15} className="text-white/40 flex-shrink-0" />
+                    <span>Photos &amp; video</span>
+                  </button>
+                  {/* Option: camera — opens camera directly on mobile */}
+                  <button
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex items-center gap-3 px-4 py-3 text-left text-sm text-white/80 hover:bg-white/[0.07] transition-colors"
+                  >
+                    <Camera size={15} className="text-white/40 flex-shrink-0" />
+                    <span>Camera</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Textarea */}
           <textarea
             ref={inputRef}
             value={input}
@@ -508,26 +736,53 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
             placeholder={`Ask ${place.shortLabel} agent anything…`}
             rows={1}
             className="flex-1 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-2.5 text-sm text-white placeholder-white/28 resize-none outline-none transition-colors scrollbar-none leading-relaxed"
-            style={{
-              maxHeight: '120px',
-              // Subtle focus ring using accent color
-            }}
+            style={{ maxHeight: '120px' }}
             onFocus={(e) => (e.currentTarget.style.borderColor = `${color}55`)}
             onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}
           />
+
+          {/* Send button */}
           <button
             onClick={() => handleSend(input)}
-            disabled={!input.trim() || isTyping}
-            className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all duration-150 disabled:opacity-35 active:scale-95"
-            style={{
-              background: `linear-gradient(135deg, ${color}cc 0%, ${color}99 100%)`,
-            }}
+            disabled={!canSend}
+            className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-150 disabled:opacity-35 active:scale-95"
+            style={{ background: `linear-gradient(135deg, ${color}cc 0%, ${color}99 100%)` }}
             aria-label="Send"
           >
             <Send size={15} className="text-white" style={{ transform: 'translateX(1px)' }} />
           </button>
         </div>
+
+        {/* Hidden file inputs */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => { handleFiles(e.target.files); e.currentTarget.value = ''; }}
+        />
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          className="hidden"
+          onChange={(e) => { handleFiles(e.target.files); e.currentTarget.value = ''; }}
+        />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => { handleFiles(e.target.files); e.currentTarget.value = ''; }}
+        />
       </div>
+
+      {/* ── File preview sheet ───────────────────────────────────────────── */}
+      {previewFile && (
+        <FilePreviewSheet file={previewFile} onClose={() => setPreviewFile(null)} />
+      )}
     </div>
   );
 }
