@@ -8,10 +8,40 @@
  * This client does NOT contain business logic — it relays operator intent.
  */
 
-import type { CreationSession, SessionDeskType, SessionField } from './types';
+import type { AttachedFile, CreationSession, SessionDeskType, SessionField } from './types';
 import { mockSessions } from './mocks';
 
 class CommandClient {
+  // ─── Agent chat ───────────────────────────────────────────────────────────
+
+  /**
+   * Send a chat message (with optional file attachments) to the place agent.
+   *
+   * In production: POST /places/{placeId}/agent/messages
+   *   multipart/form-data: text (string) + raw File bytes
+   *   Response: { text: string; files?: AttachedFile[] }
+   *
+   * To wire a real backend, replace the local respond() call in AgentChat
+   * with an await of this method, and build a FormData from the raw File
+   * objects (obtainable via fetch(attachment.objectUrl) → blob).
+   */
+  async sendChatMessage(
+    placeId: string,
+    text: string,
+    attachments: AttachedFile[]
+  ): Promise<void> {
+    await delay(700 + Math.random() * 500);
+    // Mock: the response is handled locally in AgentChat via respond().
+    // Production: const fd = new FormData();
+    //             fd.append('text', text);
+    //             for (const a of attachments) {
+    //               const blob = await fetch(a.objectUrl!).then(r => r.blob());
+    //               fd.append('files', blob, a.name);
+    //             }
+    //             return fetch(`/api/places/${placeId}/agent/messages`, { method: 'POST', body: fd }).then(r => r.json());
+    console.log(`[CommandClient] sendChatMessage place=${placeId} files=${attachments.length}`);
+  }
+
   // ─── Creation Sessions ────────────────────────────────────────────────────
 
   async startSession(
