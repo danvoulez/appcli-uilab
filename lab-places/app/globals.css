@@ -7,7 +7,9 @@
   /* Safe area insets — only non-zero when viewport-fit=cover is active.
      Use these CSS vars throughout rather than env() directly for clarity.
      safe-area-max-inset-* are new in iOS 26 / Safari 26: static maximums
-     (constants) — useful for layout calculations that need stability. */
+     (constants) — useful for layout calculations that need stability.
+     The static variants don't change as the toolbar animates in/out,
+     making them ideal for fixed-height containers. */
   --sat:     env(safe-area-inset-top,    0px);
   --sab:     env(safe-area-inset-bottom, 0px);
   --sal:     env(safe-area-inset-left,   0px);
@@ -31,6 +33,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   /* Prevent rubber-band overscroll revealing the dark background on macOS */
   overscroll-behavior: none;
+  /* Optimise multi-line text rendering: prevents orphaned words on last line */
+  text-wrap: pretty;
 }
 
 /* Structural: prevent native scrollbar from ever showing on the body.
@@ -55,17 +59,19 @@ html::-webkit-scrollbar {
 }
 
 /* Safe area padding utilities.
-   pt-safe / pb-safe add the safe area inset on top of base padding.
-   These work correctly on iPhone Dynamic Island, home indicator bar,
-   and iOS 26 new tab strip layouts. */
+   pt-safe / pb-safe use the *maximum* inset variants from iOS 26.
+   Using max-insets for fixed layouts prevents padding from reflowing
+   as the Safari toolbar animates in/out — the value is stable. */
 .pt-safe {
-  padding-top: max(12px, var(--sat));
+  padding-top: max(12px, var(--sat-max));
 }
 .pb-safe {
-  padding-bottom: max(10px, var(--sab));
+  /* --sab-max: static maximum bottom inset (iOS 26). Falls back to --sab on older OS. */
+  padding-bottom: max(10px, var(--sab-max));
 }
 .pb-safe-input {
-  /* For input bars: base 24px + safe area. Keeps input above home indicator. */
+  /* For input bars: base 24px + safe area. Keeps input above home indicator.
+     Uses dynamic --sab (not max) so the input bar tracks the actual visible area. */
   padding-bottom: max(24px, calc(var(--sab) + 12px));
 }
 

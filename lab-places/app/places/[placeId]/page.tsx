@@ -95,7 +95,10 @@ export default async function PlacePage({ params }: Props) {
           MOBILE — hard fixed viewport, NO scroll anywhere.
           Banner flexes to fill; all other rows are fixed-size.
           ════════════════════════════════════════════════════════════════ */}
-      <div className="md:hidden h-screen bg-[#0e0e0e] overflow-hidden flex flex-col">
+      {/* 100svh = small viewport height: sized for the browser-chrome-visible state.
+          Prevents the container from extending behind the address bar.
+          In standalone/PWA mode svh == dvh == lvh (no browser chrome). */}
+      <div className="md:hidden h-[100svh] bg-[#0e0e0e] overflow-hidden flex flex-col">
 
         <div className="fixed inset-0 pointer-events-none opacity-[0.02]" aria-hidden="true"
           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.8) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
@@ -188,7 +191,7 @@ export default async function PlacePage({ params }: Props) {
       {/* ════════════════════════════════════════════════════════════════
           DESKTOP — fixed h-screen, rich 3-col, internal scrollbar-none
           ════════════════════════════════════════════════════════════════ */}
-      <div className="hidden md:flex h-screen bg-[#0e0e0e] overflow-hidden flex-col">
+      <div className="hidden md:flex h-[100svh] bg-[#0e0e0e] overflow-hidden flex-col">
 
         <div className="fixed inset-0 pointer-events-none opacity-[0.02]" aria-hidden="true"
           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.8) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
