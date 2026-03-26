@@ -1,16 +1,20 @@
 'use client';
 
 import { PlaceCard } from './PlaceCard';
-import { mockPlaceSummaries } from '@/lib/mocks';
+import type { PlaceSummary } from '@/lib/types';
 
-export function PlaceGrid() {
+interface Props {
+  summaries: PlaceSummary[];
+}
+
+export function PlaceGrid({ summaries }: Props) {
   return (
     <div
       className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 w-full"
       role="list"
       aria-label="LAB Places"
     >
-      {mockPlaceSummaries.map((summary) => (
+      {summaries.map((summary) => (
         <div key={summary.id} role="listitem">
           <PlaceCard summary={summary} />
         </div>

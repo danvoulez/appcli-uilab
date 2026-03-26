@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { mockPlaceDetails } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import { StatusChip } from '@/components/StatusChip';
 import { ActionRail } from '@/components/shell/ActionRail';
 import { InfoPanel } from '@/components/shell/InfoPanel';
@@ -52,13 +52,13 @@ function AgentHero({ placeId, shortLabel, color }: { placeId: string; shortLabel
 
 export default async function PlacePage({ params }: Props) {
   const { placeId } = await params;
-  const place = mockPlaceDetails.find((p) => p.id === placeId);
+  const place = await queryClient.getPlace(placeId);
   if (!place) notFound();
 
   const color = place.accentColor;
 
   const Header = (
-    <header className="flex-shrink-0 px-4 md:px-8 pt-3 pb-2.5 border-b border-white/[0.06]">
+    <header className="flex-shrink-0 pt-safe px-4 md:px-8 pb-2.5 border-b border-white/[0.06]">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 mb-1.5">
         <Link
@@ -95,7 +95,10 @@ export default async function PlacePage({ params }: Props) {
           MOBILE — hard fixed viewport, NO scroll anywhere.
           Banner flexes to fill; all other rows are fixed-size.
           ════════════════════════════════════════════════════════════════ */}
-      <div className="md:hidden h-screen bg-[#0e0e0e] overflow-hidden flex flex-col">
+      {/* 100svh = small viewport height: sized for the browser-chrome-visible state.
+          Prevents the container from extending behind the address bar.
+          In standalone/PWA mode svh == dvh == lvh (no browser chrome). */}
+      <div className="md:hidden h-[100svh] bg-[#0e0e0e] overflow-hidden flex flex-col">
 
         <div className="fixed inset-0 pointer-events-none opacity-[0.02]" aria-hidden="true"
           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.8) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
@@ -103,7 +106,7 @@ export default async function PlacePage({ params }: Props) {
         {Header}
 
         {/* Content — flex column, strictly proportional, no overflow property */}
-        <div className="relative z-10 flex-1 min-h-0 flex flex-col px-3 pt-2 pb-2.5 gap-1.5">
+        <div className="relative z-10 flex-1 min-h-0 flex flex-col px-3 pt-2 pb-safe gap-1.5">
 
           {/* 1. Color banner — expands to fill remaining space */}
           <div
@@ -188,7 +191,7 @@ export default async function PlacePage({ params }: Props) {
       {/* ════════════════════════════════════════════════════════════════
           DESKTOP — fixed h-screen, rich 3-col, internal scrollbar-none
           ════════════════════════════════════════════════════════════════ */}
-      <div className="hidden md:flex h-screen bg-[#0e0e0e] overflow-hidden flex-col">
+      <div className="hidden md:flex h-[100svh] bg-[#0e0e0e] overflow-hidden flex-col">
 
         <div className="fixed inset-0 pointer-events-none opacity-[0.02]" aria-hidden="true"
           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.8) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
@@ -319,5 +322,6 @@ export default async function PlacePage({ params }: Props) {
 }
 
 export async function generateStaticParams() {
-  return mockPlaceDetails.map((p) => ({ placeId: p.id }));
+  const places = await queryClient.listPlaces();
+  return places.map((p) => ({ placeId: p.id }));
 }
