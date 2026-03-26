@@ -354,7 +354,7 @@ function AgentBubble({
             borderLeft: `2px solid ${color}60`,
           }}
         >
-          <p className="text-sm text-white/82 leading-relaxed">{renderText(msg.text)}</p>
+          <p className="text-[16px] text-white/82 leading-relaxed">{renderText(msg.text)}</p>
         </div>
         {msg.card && <CardView card={msg.card} color={color} />}
         {msg.files && msg.files.length > 0 && (
@@ -390,7 +390,7 @@ function UserBubble({
       )}
       {msg.text && (
         <div
-          className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm text-white leading-relaxed"
+          className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-tr-sm text-[16px] text-white leading-relaxed"
           style={{ background: `linear-gradient(135deg, ${color}aa 0%, ${color}77 100%)` }}
         >
           {msg.text}
@@ -621,7 +621,7 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
               <button
                 key={p}
                 onClick={() => handleSend(p)}
-                className="px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 active:scale-[0.96]"
+                className="px-3.5 py-1.5 rounded-full text-[13px] font-semibold transition-all duration-150 active:scale-[0.96]"
                 style={{ border: `1px solid ${color}55`, color: `${color}ee`, background: `${color}12` }}
               >
                 {p}
@@ -735,8 +735,12 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
             onKeyDown={handleKey}
             placeholder={`Ask ${place.shortLabel} agent anything…`}
             rows={1}
-            className="flex-1 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-2.5 text-sm text-white placeholder-white/28 resize-none outline-none transition-colors scrollbar-none leading-relaxed"
-            style={{ maxHeight: '120px' }}
+            className="flex-1 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-2.5 text-white placeholder-white/28 resize-none outline-none transition-colors scrollbar-none leading-relaxed"
+            style={{
+              maxHeight: '120px',
+              // 16px minimum prevents iOS Safari from zooming the viewport on focus
+              fontSize: '16px',
+            }}
             onFocus={(e) => (e.currentTarget.style.borderColor = `${color}55`)}
             onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}
           />
