@@ -1,15 +1,12 @@
 /**
  * Command Client — frontend seam for write/action operations.
  *
- * Currently mocked. When the Rust control plane is ready,
- * replace mock responses with POST /commands/{type} calls.
- *
- * Commands follow the pattern: describe intent → validate → confirm → execute.
- * This client does NOT contain business logic — it relays operator intent.
+ * Until the command boundary is live, this client returns explicit SOON failures
+ * instead of pretending to mutate canonical state locally.
  */
 
 import type { AttachedFile, CreationSession, SessionDeskType, SessionField } from './types';
-import { mockSessions } from './mocks';
+import { buildSoonSession } from './soon';
 
 class CommandClient {
   // ─── Agent chat ───────────────────────────────────────────────────────────
@@ -30,16 +27,10 @@ class CommandClient {
     text: string,
     attachments: AttachedFile[]
   ): Promise<void> {
-    await delay(700 + Math.random() * 500);
-    // Mock: the response is handled locally in AgentChat via respond().
-    // Production: const fd = new FormData();
-    //             fd.append('text', text);
-    //             for (const a of attachments) {
-    //               const blob = await fetch(a.objectUrl!).then(r => r.blob());
-    //               fd.append('files', blob, a.name);
-    //             }
-    //             return fetch(`/api/places/${placeId}/agent/messages`, { method: 'POST', body: fd }).then(r => r.json());
-    console.log(`[CommandClient] sendChatMessage place=${placeId} files=${attachments.length}`);
+    await delay(150);
+    throw new Error(
+      `SOON: agent command boundary not wired yet for ${placeId}. Refusing fake local write with ${attachments.length} attachments.`
+    );
   }
 
   // ─── Creation Sessions ────────────────────────────────────────────────────
@@ -48,82 +39,58 @@ class CommandClient {
     deskType: SessionDeskType,
     intent: string
   ): Promise<{ sessionId: string }> {
-    await delay(200);
-    // In production: POST /creation-sessions { deskType, intent }
-    const id = `session-${Date.now()}`;
-    return { sessionId: id };
+    await delay(100);
+    return { sessionId: `session-${deskType}-soon` };
   }
 
   async updateSessionFields(
     sessionId: string,
     fields: SessionField[]
   ): Promise<CreationSession> {
-    await delay(150);
-    // In production: PATCH /creation-sessions/{id}/fields
-    const session = mockSessions.find((s) => s.id === sessionId);
-    if (!session) throw new Error(`Session ${sessionId} not found`);
-    return { ...session, fields, phase: 'warnings', updatedAt: new Date().toISOString() };
+    await delay(100);
+    const session = buildSoonSession(sessionId);
+    return { ...session, fields };
   }
 
   async confirmSession(sessionId: string): Promise<CreationSession> {
-    await delay(300);
-    // In production: POST /creation-sessions/{id}/confirm
-    const session = mockSessions.find((s) => s.id === sessionId);
-    if (!session) throw new Error(`Session ${sessionId} not found`);
-    return {
-      ...session,
-      phase: 'result',
-      status: 'completed',
-      result: {
-        success: true,
-        objectId: `obj-${Date.now()}`,
-        objectType: session.deskType,
-        objectLabel: session.proposal?.objectLabel ?? 'Unknown',
-        message: 'Object created and registered successfully.',
-      },
-      updatedAt: new Date().toISOString(),
-    };
+    await delay(100);
+    return buildSoonSession(sessionId);
   }
 
   async cancelSession(sessionId: string): Promise<void> {
-    await delay(100);
-    // In production: POST /creation-sessions/{id}/cancel
+    await delay(50);
+    throw new Error(`SOON: session cancellation is not wired yet for ${sessionId}.`);
   }
 
   // ─── Job Actions ──────────────────────────────────────────────────────────
 
   async retryJob(jobId: string): Promise<void> {
-    await delay(200);
-    // In production: POST /jobs/{id}/retry
-    console.log(`[CommandClient] retry job ${jobId}`);
+    await delay(50);
+    throw new Error(`SOON: retry command boundary is not wired yet for ${jobId}.`);
   }
 
   async cancelJob(jobId: string): Promise<void> {
-    await delay(150);
-    // In production: POST /jobs/{id}/cancel
-    console.log(`[CommandClient] cancel job ${jobId}`);
+    await delay(50);
+    throw new Error(`SOON: cancel command boundary is not wired yet for ${jobId}.`);
   }
 
   // ─── Workflow Actions ─────────────────────────────────────────────────────
 
   async pauseWorkflow(workflowId: string): Promise<void> {
-    await delay(150);
-    // In production: POST /workflows/{id}/pause
-    console.log(`[CommandClient] pause workflow ${workflowId}`);
+    await delay(50);
+    throw new Error(`SOON: pause workflow boundary is not wired yet for ${workflowId}.`);
   }
 
   async retryWorkflowStep(workflowId: string, stepIndex: number): Promise<void> {
-    await delay(200);
-    // In production: POST /workflows/{id}/steps/{step}/retry
-    console.log(`[CommandClient] retry step ${stepIndex} on workflow ${workflowId}`);
+    await delay(50);
+    throw new Error(`SOON: retry workflow step boundary is not wired yet for ${workflowId}#${stepIndex}.`);
   }
 
   // ─── Key Rotation ─────────────────────────────────────────────────────────
 
   async rotateCredential(credentialId: string): Promise<void> {
-    await delay(300);
-    // In production: POST /credentials/{id}/rotate
-    console.log(`[CommandClient] rotate credential ${credentialId}`);
+    await delay(50);
+    throw new Error(`SOON: credential rotation boundary is not wired yet for ${credentialId}.`);
   }
 }
 

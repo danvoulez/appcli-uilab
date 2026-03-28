@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { mockLogViews, mockInspectors } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import type { JobInspector } from '@/lib/types';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { StatusChip } from '@/components/StatusChip';
@@ -9,12 +9,10 @@ interface Props { params: Promise<{ id: string }>; }
 
 export default async function JobLogViewPage({ params }: Props) {
   const { id } = await params;
-  const logView = mockLogViews.find((l) => l.sourceType === 'job' && l.sourceId === id);
+  const logView = await queryClient.getLogView('job', id);
   if (!logView) notFound();
 
-  const inspector = mockInspectors.find(
-    (i) => i.type === 'job' && i.id === id
-  ) as JobInspector | undefined;
+  const inspector = (await queryClient.getInspector('job', id)) as JobInspector | null;
 
   return (
     <OperatorShell

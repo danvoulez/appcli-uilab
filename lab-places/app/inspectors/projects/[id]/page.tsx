@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { mockInspectors } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import type { ProjectInspector } from '@/lib/types';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { StatusChip } from '@/components/StatusChip';
@@ -18,9 +18,7 @@ const officialStatusConfig = {
 
 export default async function ProjectInspectorPage({ params }: Props) {
   const { id } = await params;
-  const inspector = mockInspectors.find(
-    (i) => i.type === 'project' && i.id === id
-  ) as ProjectInspector | undefined;
+  const inspector = (await queryClient.getInspector('project', id)) as ProjectInspector | null;
   if (!inspector) notFound();
 
   const official = officialStatusConfig[inspector.officialStatus];

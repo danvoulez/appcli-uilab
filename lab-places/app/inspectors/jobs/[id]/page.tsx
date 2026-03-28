@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { mockInspectors } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import type { JobInspector } from '@/lib/types';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { StatusChip } from '@/components/StatusChip';
@@ -12,9 +12,7 @@ interface Props { params: Promise<{ id: string }>; }
 
 export default async function JobInspectorPage({ params }: Props) {
   const { id } = await params;
-  const inspector = mockInspectors.find(
-    (i) => i.type === 'job' && i.id === id
-  ) as JobInspector | undefined;
+  const inspector = (await queryClient.getInspector('job', id)) as JobInspector | null;
   if (!inspector) notFound();
 
   const isFailed = inspector.status === 'warning' || inspector.status === 'degraded';

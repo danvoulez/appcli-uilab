@@ -1,34 +1,30 @@
 /**
  * Query Client — frontend seam for read-model operations.
  *
- * Currently powered by local mocks. When the Rust query API is ready,
- * replace the mock adapter below with real HTTP/SSE calls.
- *
- * Pattern: all methods return promises to make the swap transparent.
+ * Live control-plane reads are used where the backend already has an honest contract.
+ * Everything else returns explicit SOON placeholders instead of fake operational data.
  */
 
 import type {
-  PlaceSummary,
-  PlaceDetail,
-  StatusLevel,
-  StatusLight,
-  Signal,
-  Panel,
-  DetailSection,
-  Attention,
   AnyInspector,
-  Timeline,
-  LogView,
   CreationSession,
+  LogView,
+  PlaceDetail,
+  PlaceSummary,
+  Timeline,
 } from './types';
+import { getPlaceCatalogItem, PLACE_CATALOG, type PlaceCatalogItem } from './place-catalog';
 import {
-  mockPlaceSummaries,
-  mockPlaceDetails,
-  mockInspectors,
-  mockTimelines,
-  mockLogViews,
-  mockSessions,
-} from './mocks';
+  buildLiveJobInspector,
+  buildSoonInspector,
+  buildSoonLogView,
+  buildSoonPlaceDetail,
+  buildSoonPlaceSummary,
+  buildSoonSession,
+  buildSoonTimeline,
+  normalizeTimelineObjectType,
+  severityFromEvent,
+} from './soon';
 
 type LivePlaceView = {
   place: string;
@@ -37,64 +33,97 @@ type LivePlaceView = {
   data: Record<string, unknown>;
 };
 
+type LiveInspectorView = {
+  kind: string;
+  id: string;
+  body: Record<string, unknown>;
+};
+
+type LiveTimelineEntry = {
+  at: string;
+  kind: string;
+  summary: string;
+};
+
 const LIVE_PLACE_IDS = new Set(['lab-256', 'lab-8gb', 'lab-512', 'supabase']);
+const LIVE_INSPECTOR_KINDS = new Set(['job']);
 
 class QueryClient {
-  // ─── Places ──────────────────────────────────────────────────────────────
-
   async listPlaces(): Promise<PlaceSummary[]> {
     const livePlaces = await fetchLivePlaces();
 
-    return mockPlaceSummaries.map((place) => {
-      const live = livePlaces.get(place.id);
-      return live ? mergeLivePlaceSummary(place, live) : place;
+    return PLACE_CATALOG.map((item) => {
+      const live = livePlaces.get(item.id);
+      return live ? mergeLivePlaceSummary(item, live) : buildSoonPlaceSummary(item);
     });
   }
 
   async getPlace(placeId: string): Promise<PlaceDetail | null> {
-    const mock = mockPlaceDetails.find((p) => p.id === placeId) ?? null;
-    if (!mock) return null;
+    const item = getPlaceCatalogItem(placeId);
+    if (!item) return null;
 
     const live = await fetchLivePlace(placeId);
-    return live ? mergeLivePlaceDetail(mock, live) : mock;
+    return live ? mergeLivePlaceDetail(item, live) : buildSoonPlaceDetail(item);
   }
 
-  // ─── Inspectors ──────────────────────────────────────────────────────────
-
   async getInspector(type: string, id: string): Promise<AnyInspector | null> {
-    await delay(120);
-    return mockInspectors.find((i) => i.type === type && i.id === id) ?? null;
+    const normalized = type.trim().toLowerCase();
+    const live = await fetchLiveInspector(normalized, id);
+
+    if (live && normalized === 'job') {
+      const job = live.body.job as Record<string, unknown> | undefined;
+      const latestRun = live.body.latest_run as Record<string, unknown> | undefined;
+      return buildLiveJobInspector(id, job, latestRun);
+    }
+
+    return buildSoonInspector(normalized, id);
   }
 
   async listInspectors(type: string): Promise<AnyInspector[]> {
-    await delay(100);
-    return mockInspectors.filter((i) => i.type === type);
+    const normalized = type.trim().toLowerCase();
+    const soon = buildSoonInspector(normalized, `${normalized}-soon`);
+    return soon ? [soon] : [];
   }
-
-  // ─── Timelines ───────────────────────────────────────────────────────────
 
   async getTimeline(objectType: string, objectId: string): Promise<Timeline | null> {
-    await delay(110);
-    return mockTimelines.find((t) => t.objectType === objectType && t.objectId === objectId) ?? null;
-  }
+    const normalized = objectType.trim().toLowerCase();
+    const liveEntries = await fetchLiveTimeline(normalized, objectId);
 
-  // ─── Logs ────────────────────────────────────────────────────────────────
+    if (liveEntries) {
+      return {
+        objectId,
+        objectType: normalizeTimelineObjectType(normalized),
+        objectLabel: `${normalized.toUpperCase()} ${objectId}`,
+        events: liveEntries.map((entry, index) => ({
+          id: `${objectId}-${index}`,
+          timestamp: entry.at,
+          actor: 'control-plane',
+          actorType: 'system',
+          message: entry.summary,
+          severity: severityFromEvent(entry.kind),
+          linkedObjectId: objectId,
+          linkedObjectType: normalizeTimelineObjectType(normalized),
+          linkedObjectLabel: `${normalized.toUpperCase()} ${objectId}`,
+          metadata: { event_kind: entry.kind },
+        })),
+      };
+    }
+
+    return buildSoonTimeline(normalized, objectId);
+  }
 
   async getLogView(sourceType: string, sourceId: string): Promise<LogView | null> {
-    await delay(130);
-    return mockLogViews.find((l) => l.sourceType === sourceType && l.sourceId === sourceId) ?? null;
+    return buildSoonLogView(sourceType, sourceId);
   }
 
-  // ─── Sessions ────────────────────────────────────────────────────────────
-
   async getSession(id: string): Promise<CreationSession | null> {
-    await delay(90);
-    return mockSessions.find((s) => s.id === id) ?? null;
+    return buildSoonSession(id);
   }
 
   async listSessions(): Promise<CreationSession[]> {
-    await delay(90);
-    return mockSessions;
+    return ['lab-id', 'supabase', 'workflows', 'lab-512'].map((deskType) =>
+      buildSoonSession(`session-${deskType}-soon`)
+    );
   }
 }
 
@@ -106,7 +135,9 @@ async function fetchLivePlaces(): Promise<Map<string, LivePlaceView>> {
     })
   );
 
-  return new Map(liveEntries.filter((entry): entry is readonly [string, LivePlaceView] => Boolean(entry)));
+  return new Map(
+    liveEntries.filter((entry): entry is readonly [string, LivePlaceView] => Boolean(entry))
+  );
 }
 
 async function fetchLivePlace(placeId: string): Promise<LivePlaceView | null> {
@@ -114,60 +145,96 @@ async function fetchLivePlace(placeId: string): Promise<LivePlaceView | null> {
     return null;
   }
 
-  const baseUrl = (process.env.MODES_CONTROL_PLANE_BASE_URL ?? 'http://127.0.0.1:8080').replace(/\/+$/, '');
-  const token = process.env.MODES_DEV_OPERATOR_TOKEN ?? 'modes-dev-operator';
-
   try {
-    const response = await fetch(`${baseUrl}/query/places/${placeId}`, {
+    const response = await fetch(`${controlPlaneBaseUrl()}/query/places/${placeId}`, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${controlPlaneToken()}`,
       },
       cache: 'no-store',
     });
 
-    if (!response.ok) {
-      return null;
-    }
-
+    if (!response.ok) return null;
     return (await response.json()) as LivePlaceView;
   } catch {
     return null;
   }
 }
 
-function mergeLivePlaceSummary(mock: PlaceSummary, live: LivePlaceView): PlaceSummary {
+async function fetchLiveInspector(type: string, id: string): Promise<LiveInspectorView | null> {
+  if (!LIVE_INSPECTOR_KINDS.has(type) || !looksLikeUuid(id)) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${controlPlaneBaseUrl()}/query/inspectors/${type}/${id}`, {
+      headers: {
+        Authorization: `Bearer ${controlPlaneToken()}`,
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) return null;
+    return (await response.json()) as LiveInspectorView;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchLiveTimeline(type: string, id: string): Promise<LiveTimelineEntry[] | null> {
+  if (!(type === 'job' || type === 'project') || !looksLikeUuid(id)) {
+    return null;
+  }
+
+  const liveKind = type === 'project' ? 'job' : type;
+
+  try {
+    const response = await fetch(`${controlPlaneBaseUrl()}/query/timelines/${liveKind}/${id}`, {
+      headers: {
+        Authorization: `Bearer ${controlPlaneToken()}`,
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) return null;
+    return (await response.json()) as LiveTimelineEntry[];
+  } catch {
+    return null;
+  }
+}
+
+function mergeLivePlaceSummary(item: PlaceCatalogItem, live: LivePlaceView): PlaceSummary {
   return {
-    ...mock,
+    id: item.id,
     title: live.title,
     shortLabel: live.title,
+    descriptor: item.descriptor,
     shortSummary: live.summary,
-    status: deriveStatus(mock.id, live),
+    backgroundImage: item.backgroundImage,
+    accentColor: item.accentColor,
+    textColor: item.textColor,
+    status: deriveStatus(item.id, live),
     statusLights: deriveStatusLights(live),
-    primarySignals: deriveSignals(mock.id, live),
-    attention: deriveAttention(mock.id, live),
+    primarySignals: deriveSignals(item.id, live),
+    attention: deriveAttention(item.id, live),
   };
 }
 
-function mergeLivePlaceDetail(mock: PlaceDetail, live: LivePlaceView): PlaceDetail {
-  const livePanel = snapshotPanel(live);
-  const liveDetails = snapshotDetails(live);
+function mergeLivePlaceDetail(item: PlaceCatalogItem, live: LivePlaceView): PlaceDetail {
+  const summary = mergeLivePlaceSummary(item, live);
 
   return {
-    ...mock,
-    title: live.title,
-    shortLabel: live.title,
-    shortSummary: live.summary,
+    ...summary,
     overview: live.summary,
-    status: deriveStatus(mock.id, live),
-    statusLights: deriveStatusLights(live),
-    primarySignals: deriveSignals(mock.id, live),
-    attention: deriveAttention(mock.id, live),
-    panels: [livePanel, ...mock.panels.slice(1)],
-    deepDetails: [liveDetails, ...mock.deepDetails.slice(1)],
+    panels: [snapshotPanel(live)],
+    actions: [
+      { id: 'agent', label: 'Open agent shell', variant: 'primary', href: `/places/${item.id}/agent` },
+    ],
+    deepDetails: [snapshotDetails(live)],
+    relations: [],
   };
 }
 
-function deriveStatus(placeId: string, live: LivePlaceView): StatusLevel {
+function deriveStatus(placeId: string, live: LivePlaceView): PlaceSummary['status'] {
   const pending = readNumber(live, 'pending_commands');
   const queued = readNumber(live, 'queued_jobs');
   const online = readNumber(live, 'online_nodes');
@@ -178,7 +245,7 @@ function deriveStatus(placeId: string, live: LivePlaceView): StatusLevel {
   return 'healthy';
 }
 
-function deriveStatusLights(live: LivePlaceView): StatusLight[] {
+function deriveStatusLights(live: LivePlaceView): PlaceSummary['statusLights'] {
   const pending = readNumber(live, 'pending_commands');
   const running = readNumber(live, 'running_jobs');
 
@@ -189,7 +256,7 @@ function deriveStatusLights(live: LivePlaceView): StatusLight[] {
   ];
 }
 
-function deriveSignals(placeId: string, live: LivePlaceView): Signal[] {
+function deriveSignals(placeId: string, live: LivePlaceView): PlaceSummary['primarySignals'] {
   const queued = readNumber(live, 'queued_jobs');
   const running = readNumber(live, 'running_jobs');
   const completed = readNumber(live, 'completed_jobs');
@@ -220,18 +287,14 @@ function deriveSignals(placeId: string, live: LivePlaceView): Signal[] {
     ];
   }
 
-  if (placeId === 'supabase') {
-    return [
-      { label: 'Nodes online', value: `${online}` },
-      { label: 'Pending commands', value: `${pending}` },
-      { label: 'Snapshot', value: 'live' },
-    ];
-  }
-
-  return [];
+  return [
+    { label: 'Nodes online', value: `${online}` },
+    { label: 'Pending commands', value: `${pending}` },
+    { label: 'Snapshot', value: 'live' },
+  ];
 }
 
-function deriveAttention(placeId: string, live: LivePlaceView): Attention | null {
+function deriveAttention(placeId: string, live: LivePlaceView) {
   const pending = readNumber(live, 'pending_commands');
   const queued = readNumber(live, 'queued_jobs');
 
@@ -252,7 +315,7 @@ function deriveAttention(placeId: string, live: LivePlaceView): Attention | null
   return null;
 }
 
-function snapshotPanel(live: LivePlaceView): Panel {
+function snapshotPanel(live: LivePlaceView): PlaceDetail['panels'][number] {
   return {
     title: 'Live Snapshot',
     items: [
@@ -261,12 +324,16 @@ function snapshotPanel(live: LivePlaceView): Panel {
       { label: 'Queued jobs', value: `${readNumber(live, 'queued_jobs')}`, status: 'idle' },
       { label: 'Running jobs', value: `${readNumber(live, 'running_jobs')}`, status: 'ok' },
       { label: 'Completed jobs', value: `${readNumber(live, 'completed_jobs')}`, status: 'ok' },
-      { label: 'Pending commands', value: `${readNumber(live, 'pending_commands')}`, status: readNumber(live, 'pending_commands') > 0 ? 'warn' : 'ok' },
+      {
+        label: 'Pending commands',
+        value: `${readNumber(live, 'pending_commands')}`,
+        status: readNumber(live, 'pending_commands') > 0 ? 'warn' : 'ok',
+      },
     ],
   };
 }
 
-function snapshotDetails(live: LivePlaceView): DetailSection {
+function snapshotDetails(live: LivePlaceView): PlaceDetail['deepDetails'][number] {
   return {
     title: 'Live Control Plane',
     rows: [
@@ -285,8 +352,16 @@ function readNumber(live: LivePlaceView, key: string): number {
   return typeof value === 'number' ? value : 0;
 }
 
-function delay(ms: number) {
-  return new Promise<void>((r) => setTimeout(r, ms));
+function controlPlaneBaseUrl(): string {
+  return (process.env.MODES_CONTROL_PLANE_BASE_URL ?? 'http://127.0.0.1:8080').replace(/\/+$/, '');
+}
+
+function controlPlaneToken(): string {
+  return process.env.MODES_DEV_OPERATOR_TOKEN ?? 'modes-dev-operator';
+}
+
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 export const queryClient = new QueryClient();

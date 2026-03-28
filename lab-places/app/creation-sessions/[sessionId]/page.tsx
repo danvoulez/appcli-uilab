@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { mockSessions } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { SessionShell } from '@/components/creation-session/SessionShell';
 import { FieldsView } from '@/components/creation-session/FieldsView';
@@ -27,7 +27,7 @@ const placeLabel: Record<string, string> = {
 
 export default async function SessionDetailPage({ params }: Props) {
   const { sessionId } = await params;
-  const session = mockSessions.find((s) => s.id === sessionId);
+  const session = await queryClient.getSession(sessionId);
   if (!session) notFound();
 
   const placeId = deskToPlace[session.deskType];

@@ -1,0 +1,326 @@
+import type {
+  AnyInspector,
+  Attention,
+  CreationSession,
+  DetailSection,
+  JobInspector,
+  LogEntry,
+  LogView,
+  Panel,
+  PlaceDetail,
+  PlaceSummary,
+  SessionDeskType,
+  Signal,
+  StatusLight,
+  Timeline,
+  TimelineEvent,
+} from './types';
+import type { PlaceCatalogItem } from './place-catalog';
+
+export function buildSoonPlaceSummary(item: PlaceCatalogItem): PlaceSummary {
+  return {
+    id: item.id,
+    title: item.title,
+    shortLabel: item.shortLabel,
+    descriptor: item.descriptor,
+    shortSummary: `${item.shortSummary} SOON: this surface still needs a real query contract.`,
+    backgroundImage: item.backgroundImage,
+    accentColor: item.accentColor,
+    textColor: item.textColor,
+    status: 'attention',
+    statusLights: buildSoonStatusLights(),
+    primarySignals: buildSoonSignals(),
+    attention: buildSoonAttention(),
+  };
+}
+
+export function buildSoonPlaceDetail(item: PlaceCatalogItem): PlaceDetail {
+  const summary = buildSoonPlaceSummary(item);
+
+  return {
+    ...summary,
+    overview: `SOON: ${item.title} still needs a real backend read model. The UI is intentionally showing a placeholder instead of fake operational data.`,
+    panels: [
+      {
+        title: 'Read Model Status',
+        items: [
+          { label: 'Surface', value: item.title, status: 'idle' },
+          { label: 'Backend query', value: 'SOON', status: 'warn' },
+          { label: 'Operational truth', value: 'not connected', status: 'warn' },
+        ],
+      },
+    ],
+    actions: [
+      {
+        id: 'soon',
+        label: 'Coming soon',
+        description: 'This place will light up once its real read model exists.',
+        variant: 'ghost',
+        disabled: true,
+      },
+      {
+        id: 'agent',
+        label: 'Open agent shell',
+        description: 'The shell exists even while the canonical data is pending.',
+        variant: 'secondary',
+        href: `/places/${item.id}/agent`,
+      },
+    ],
+    deepDetails: [
+      {
+        title: 'SOON',
+        rows: [
+          { label: 'Reason', value: 'No canonical query endpoint yet' },
+          { label: 'Policy', value: 'Placeholder allowed, fake truth forbidden' },
+        ],
+      },
+    ],
+    relations: [],
+  };
+}
+
+export function buildSoonInspector(type: string, id: string): AnyInspector | null {
+  const now = new Date().toISOString();
+
+  if (type === 'job') {
+    return {
+      id,
+      type: 'job',
+      canonicalName: `JOB ${id}`,
+      descriptor: 'SOON placeholder inspector',
+      status: 'attention',
+      createdAt: now,
+      updatedAt: now,
+      workflowId: undefined,
+      workerNode: 'SOON',
+      inputSummary: 'SOON: live job inspector not wired for this object yet.',
+      outputSummary: 'SOON',
+      errorMessage: 'SOON: this inspector still needs a canonical backend route.',
+    };
+  }
+
+  if (type === 'project') {
+    return {
+      id,
+      type: 'project',
+      canonicalName: `PROJECT ${id}`,
+      descriptor: 'SOON placeholder inspector',
+      status: 'attention',
+      createdAt: now,
+      updatedAt: now,
+      officialStatus: 'draft',
+      dataSource: 'SOON',
+      schemaVersion: '0',
+      migrations: { applied: 0, pending: 0, lastApplied: now },
+    };
+  }
+
+  if (type === 'workflow') {
+    return {
+      id,
+      type: 'workflow',
+      canonicalName: `WORKFLOW ${id}`,
+      descriptor: 'SOON placeholder inspector',
+      status: 'attention',
+      createdAt: now,
+      updatedAt: now,
+      triggerType: 'manual',
+      steps: 0,
+      publishState: 'draft',
+      inputSource: 'SOON',
+      outputTarget: 'SOON',
+      lastRunStatus: 'attention',
+    };
+  }
+
+  if (type === 'entity') {
+    return {
+      id,
+      type: 'entity',
+      canonicalName: `ENTITY ${id}`,
+      descriptor: 'SOON placeholder inspector',
+      status: 'attention',
+      createdAt: now,
+      updatedAt: now,
+      role: 'SOON',
+      capabilities: ['SOON'],
+      credentials: [{ label: 'SOON', validity: 'pending', status: 'warn' }],
+      trustLinks: [{ target: 'SOON', mechanism: 'pending' }],
+    };
+  }
+
+  return null;
+}
+
+export function buildLiveJobInspector(
+  id: string,
+  job?: Record<string, unknown>,
+  latestRun?: Record<string, unknown>
+): JobInspector {
+  const status = mapJobStatus(String(job?.status ?? latestRun?.status ?? 'queued'));
+
+  return {
+    id,
+    type: 'job',
+    canonicalName: String(job?.kind ?? `JOB ${id.slice(0, 8)}`),
+    descriptor: 'Live control-plane inspector',
+    status,
+    createdAt: String(job?.created_at ?? new Date().toISOString()),
+    updatedAt: String(job?.updated_at ?? new Date().toISOString()),
+    ownedBy: typeof job?.requested_by_entity_id === 'string' ? String(job.requested_by_entity_id) : undefined,
+    linkedPlace: 'lab-512',
+    workflowId: typeof job?.related_workflow_id === 'string' ? String(job.related_workflow_id) : undefined,
+    workerNode: typeof latestRun?.node_id === 'string' ? String(latestRun.node_id) : undefined,
+    startedAt: typeof latestRun?.started_at === 'string' ? String(latestRun.started_at) : undefined,
+    completedAt: typeof latestRun?.finished_at === 'string' ? String(latestRun.finished_at) : undefined,
+    exitCode: status === 'healthy' ? 0 : undefined,
+    errorMessage:
+      status === 'warning' || status === 'degraded'
+        ? 'SOON: richer job failure mapping not implemented yet.'
+        : undefined,
+    inputSummary: 'Live job payload loaded from control plane.',
+    outputSummary:
+      typeof latestRun?.summary === 'string'
+        ? String(latestRun.summary)
+        : 'SOON: richer output summaries pending.',
+  };
+}
+
+export function buildSoonTimeline(type: string, id: string): Timeline {
+  return {
+    objectId: id,
+    objectType: normalizeTimelineObjectType(type),
+    objectLabel: `${type.toUpperCase()} ${id}`,
+    events: [
+      {
+        id: `${id}-soon`,
+        timestamp: new Date().toISOString(),
+        actor: 'control-plane',
+        actorType: 'system',
+        message: 'SOON: timeline backend not wired for this surface yet.',
+        severity: 'warning',
+        linkedObjectId: id,
+        linkedObjectType: normalizeTimelineObjectType(type),
+        linkedObjectLabel: `${type.toUpperCase()} ${id}`,
+      },
+    ],
+  };
+}
+
+export function buildSoonLogView(sourceType: string, sourceId: string): LogView {
+  const entry: LogEntry = {
+    id: `${sourceType}-${sourceId}-soon`,
+    timestamp: new Date().toISOString(),
+    level: 'warn',
+    source: 'lab-places',
+    message: 'SOON: log streaming is not wired for this surface yet.',
+    traceId: 'SOON',
+  };
+
+  return {
+    sourceId,
+    sourceType: sourceType === 'node' ? 'node' : 'job',
+    sourceLabel: `${sourceType.toUpperCase()} ${sourceId}`,
+    entries: [entry],
+    hasMore: false,
+  };
+}
+
+export function buildSoonSession(
+  id: string,
+  deskType: SessionDeskType = inferDeskTypeFromSessionId(id)
+): CreationSession {
+  const now = new Date().toISOString();
+
+  return {
+    id,
+    deskType,
+    title: `${deskLabel(deskType)} session`,
+    description: 'SOON: governed creation sessions are not wired to the control plane yet.',
+    phase: 'intent',
+    status: 'waiting',
+    intent: 'SOON: this desk still needs a canonical creation-session backend.',
+    fields: [
+      {
+        id: 'soon',
+        label: 'SOON',
+        type: 'text',
+        required: false,
+        value: 'Creation bureaucracy pending',
+        description: 'This is an explicit placeholder until the real creation session API exists.',
+      },
+    ],
+    warnings: [
+      {
+        id: 'soon-warning',
+        severity: 'critical',
+        title: 'SOON',
+        body: 'This session is a placeholder. No canonical object will be created from this UI yet.',
+        canProceed: false,
+      },
+    ],
+    proposal: null,
+    result: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function buildSoonStatusLights(): StatusLight[] {
+  return [
+    { label: 'Connectivity', status: 'warn' },
+    { label: 'Integrity', status: 'warn' },
+    { label: 'Activity', status: 'off' },
+  ];
+}
+
+export function buildSoonSignals(): Signal[] {
+  return [
+    { label: 'Runtime data', value: 'SOON' },
+    { label: 'Control plane', value: 'not wired' },
+    { label: 'Status', value: 'placeholder' },
+  ];
+}
+
+export function buildSoonAttention(): Attention {
+  return {
+    title: 'SOON',
+    body: 'This surface is intentionally placeholder-only until its real backend contract exists.',
+  };
+}
+
+export function mapJobStatus(status: string): JobInspector['status'] {
+  const normalized = status.toLowerCase();
+  if (normalized === 'done') return 'healthy';
+  if (normalized === 'running') return 'syncing';
+  if (normalized === 'queued') return 'warning';
+  if (normalized === 'failed' || normalized === 'error') return 'degraded';
+  return 'attention';
+}
+
+export function normalizeTimelineObjectType(type: string): Timeline['objectType'] {
+  if (type === 'project') return 'project';
+  return 'job';
+}
+
+export function severityFromEvent(kind: string): TimelineEvent['severity'] {
+  const normalized = kind.toLowerCase();
+  if (normalized.includes('fail') || normalized.includes('error')) return 'error';
+  if (normalized.includes('warn') || normalized.includes('block')) return 'warning';
+  if (normalized.includes('done') || normalized.includes('complete') || normalized.includes('publish')) return 'success';
+  return 'info';
+}
+
+export function inferDeskTypeFromSessionId(id: string): SessionDeskType {
+  if (id.includes('lab-id')) return 'lab-id';
+  if (id.includes('supabase')) return 'supabase';
+  if (id.includes('workflows')) return 'workflows';
+  return 'lab-512';
+}
+
+export function deskLabel(deskType: SessionDeskType): string {
+  if (deskType === 'lab-id') return 'LAB ID';
+  if (deskType === 'supabase') return 'SUPABASE';
+  if (deskType === 'workflows') return 'WORK FLOWS';
+  return 'LAB 512';
+}
