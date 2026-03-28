@@ -1,38 +1,40 @@
 import type { ReactElement } from 'react';
 
-// The 3×3 colour palette — matches public/icon.svg exactly.
-export const ICON_COLORS = [
-  '#D81B60', // hot pink   — top-left
-  '#212121', // near-black — top-center
-  '#E65100', // deep orange— top-right
-  '#1B5E20', // dark green — mid-left
-  '#000000', // black      — center
-  '#0D47A1', // navy blue  — mid-right
-  '#B71C1C', // dark red   — bot-left
-  '#BDBDBD', // silver     — bot-center
-  '#37474F', // blue-grey  — bot-right
-] as const;
+/**
+ * 3×3 colour palette.
+ * Uses Apple iOS system colours — calibrated to look great together at any size.
+ * Update this array to change the icon everywhere at once.
+ */
+export const ICON_COLORS: readonly string[] = [
+  '#FF3B5C', // red-pink  — top-left
+  '#1C1C1E', // near-black— top-center
+  '#FF9500', // orange    — top-right
+  '#30D158', // green     — mid-left
+  '#000000', // black     — center
+  '#0A84FF', // blue      — mid-right
+  '#BF5AF2', // purple    — bot-left
+  '#AEAEB2', // silver    — bot-center
+  '#32ADE6', // teal-blue — bot-right
+];
 
 interface GridOptions {
-  /** Overall icon size in px (square). */
   size: number;
-  /** Padding around the grid on each side. */
+  /** Padding from icon edge to first cell. */
   padding: number;
   /** Gap between cells. */
   gap: number;
-  /** Cell width and height. */
+  /** Cell width and height. Invariant: 2*padding + 3*cell + 2*gap === size */
   cell: number;
-  /** Corner radius of the outer rounded square. */
+  /** Corner radius of the outer rounded square (0 = no rounding). */
   radius: number;
   /** Corner radius of each colour cell. */
   cellRadius: number;
 }
 
 /**
- * Returns ImageResponse-compatible JSX for the 3×3 grid icon.
- * Satori (used by ImageResponse) supports flex-wrap and gap.
- *
- * Sizing invariant: 2*padding + 3*cell + 2*gap === size
+ * Returns Satori-compatible JSX for the 3×3 grid icon.
+ * Uses absolute positioning for pixel-exact cell placement —
+ * more reliable in Satori than flex-wrap + gap.
  */
 export function iconGrid({
   size,
@@ -42,30 +44,38 @@ export function iconGrid({
   radius,
   cellRadius,
 }: GridOptions): ReactElement {
+  const step = cell + gap;
+
   return (
     <div
       style={{
+        position: 'relative',
         width: size,
         height: size,
-        background: '#111111',
+        background: '#0A0A0F',
         borderRadius: radius,
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap,
-        padding,
+        overflow: 'hidden',
+        display: 'flex', // Satori requires a display value on root
       }}
     >
-      {ICON_COLORS.map((color, i) => (
-        <div
-          key={i}
-          style={{
-            width: cell,
-            height: cell,
-            background: color,
-            borderRadius: cellRadius,
-          }}
-        />
-      ))}
+      {ICON_COLORS.map((color, i) => {
+        const row = Math.floor(i / 3);
+        const col = i % 3;
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: padding + col * step,
+              top: padding + row * step,
+              width: cell,
+              height: cell,
+              background: color,
+              borderRadius: cellRadius,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
