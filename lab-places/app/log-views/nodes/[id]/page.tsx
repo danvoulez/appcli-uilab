@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { mockLogViews } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { LogView } from '@/components/log-view/LogView';
 
@@ -14,7 +14,7 @@ const nodeToPlace: Record<string, { label: string; href: string }> = {
 
 export default async function NodeLogViewPage({ params }: Props) {
   const { id } = await params;
-  const logView = mockLogViews.find((l) => l.sourceType === 'node' && l.sourceId === id);
+  const logView = await queryClient.getLogView('node', id);
   if (!logView) notFound();
 
   const place = nodeToPlace[id];

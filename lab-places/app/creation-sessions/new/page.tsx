@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { mockSessions } from '@/lib/mocks';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { ArrowRight } from 'lucide-react';
 
@@ -14,7 +13,7 @@ const deskConfig = {
     description: 'Register a new principal, entity, or credential in the identity registry.',
     color: '#1A1A1A',
     accent: 'border-white/15 hover:border-white/30',
-    sessionId: 'session-lab-id-demo',
+    sessionId: 'session-lab-id-soon',
   },
   supabase: {
     label: 'SUPABASE',
@@ -22,7 +21,7 @@ const deskConfig = {
     description: 'Officialize a project, promote schema changes, or create canonical records.',
     color: '#C2611A',
     accent: 'border-orange-500/25 hover:border-orange-500/50',
-    sessionId: 'session-supabase-demo',
+    sessionId: 'session-supabase-soon',
   },
   workflows: {
     label: 'WORK FLOWS',
@@ -30,7 +29,7 @@ const deskConfig = {
     description: 'Define a new workflow, trigger, or automation pipeline.',
     color: '#4A7FAA',
     accent: 'border-sky-500/25 hover:border-sky-500/50',
-    sessionId: 'session-workflows-demo',
+    sessionId: 'session-workflows-soon',
   },
   'lab-512': {
     label: 'LAB 512',
@@ -38,7 +37,7 @@ const deskConfig = {
     description: 'Submit a job, propose a compute workload, or configure a worker task.',
     color: '#B5173A',
     accent: 'border-rose-500/25 hover:border-rose-500/50',
-    sessionId: 'session-lab-512-demo',
+    sessionId: 'session-lab-512-soon',
   },
 };
 

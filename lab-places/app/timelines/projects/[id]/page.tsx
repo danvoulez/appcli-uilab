@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { mockTimelines, mockInspectors } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import type { ProjectInspector } from '@/lib/types';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { StatusChip } from '@/components/StatusChip';
@@ -9,12 +9,10 @@ interface Props { params: Promise<{ id: string }>; }
 
 export default async function ProjectTimelinePage({ params }: Props) {
   const { id } = await params;
-  const timeline = mockTimelines.find((t) => t.objectType === 'project' && t.objectId === id);
+  const timeline = await queryClient.getTimeline('project', id);
   if (!timeline) notFound();
 
-  const inspector = mockInspectors.find(
-    (i) => i.type === 'project' && i.id === id
-  ) as ProjectInspector | undefined;
+  const inspector = (await queryClient.getInspector('project', id)) as ProjectInspector | null;
 
   return (
     <OperatorShell

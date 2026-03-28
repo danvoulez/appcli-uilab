@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { mockInspectors } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import type { EntityInspector } from '@/lib/types';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { StatusChip } from '@/components/StatusChip';
@@ -12,9 +12,7 @@ interface Props { params: Promise<{ id: string }>; }
 
 export default async function EntityInspectorPage({ params }: Props) {
   const { id } = await params;
-  const inspector = mockInspectors.find(
-    (i) => i.type === 'entity' && i.id === id
-  ) as EntityInspector | undefined;
+  const inspector = (await queryClient.getInspector('entity', id)) as EntityInspector | null;
   if (!inspector) notFound();
 
   return (

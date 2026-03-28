@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { mockInspectors } from '@/lib/mocks';
+import { queryClient } from '@/lib/query-client';
 import type { WorkflowInspector } from '@/lib/types';
 import { OperatorShell } from '@/components/shell/OperatorShell';
 import { StatusChip } from '@/components/StatusChip';
@@ -17,9 +17,7 @@ const publishStateConfig = {
 
 export default async function WorkflowInspectorPage({ params }: Props) {
   const { id } = await params;
-  const inspector = mockInspectors.find(
-    (i) => i.type === 'workflow' && i.id === id
-  ) as WorkflowInspector | undefined;
+  const inspector = (await queryClient.getInspector('workflow', id)) as WorkflowInspector | null;
   if (!inspector) notFound();
 
   const pub = publishStateConfig[inspector.publishState];
