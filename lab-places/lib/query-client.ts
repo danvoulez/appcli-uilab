@@ -8,6 +8,7 @@
 import type {
   AnyInspector,
   CreationSession,
+  LogEntry,
   LogView,
   PlaceDetail,
   PlaceSummary,
@@ -55,7 +56,7 @@ type LiveRecentJob = {
 };
 
 const LIVE_PLACE_IDS = new Set(['lab-256', 'lab-8gb', 'lab-512', 'supabase']);
-const LIVE_INSPECTOR_KINDS = new Set(['job']);
+const LIVE_INSPECTOR_KINDS = new Set(['job', 'creation_session']);
 
 class QueryClient {
   async listPlaces(): Promise<PlaceSummary[]> {
@@ -83,6 +84,10 @@ class QueryClient {
       const job = live.body.job as Record<string, unknown> | undefined;
       const latestRun = live.body.latest_run as Record<string, unknown> | undefined;
       return buildLiveJobInspector(id, job, latestRun);
+    }
+
+    if (normalized === 'job' && looksLikeUuid(id)) {
+      return null;
     }
 
     return buildSoonInspector(normalized, id);
@@ -118,14 +123,37 @@ class QueryClient {
       };
     }
 
+    if ((normalized === 'job' || normalized === 'project') && looksLikeUuid(objectId)) {
+      return null;
+    }
+
     return buildSoonTimeline(normalized, objectId);
   }
 
   async getLogView(sourceType: string, sourceId: string): Promise<LogView | null> {
+    if (sourceType.trim().toLowerCase() === 'job') {
+      const live = await fetchLiveInspector('job', sourceId);
+      if (live) {
+        return buildLiveJobLogView(sourceId, live.body);
+      }
+      if (looksLikeUuid(sourceId)) {
+        return null;
+      }
+    }
+
     return buildSoonLogView(sourceType, sourceId);
   }
 
   async getSession(id: string): Promise<CreationSession | null> {
+    const live = await fetchLiveInspector('creation_session', id);
+    if (live) {
+      return buildLiveCreationSession(live.body.session as Record<string, unknown> | undefined, id);
+    }
+
+    if (looksLikeUuid(id)) {
+      return null;
+    }
+
     return buildSoonSession(id);
   }
 
@@ -170,12 +198,13 @@ async function fetchLivePlace(placeId: string): Promise<LivePlaceView | null> {
 }
 
 async function fetchLiveInspector(type: string, id: string): Promise<LiveInspectorView | null> {
-  if (!LIVE_INSPECTOR_KINDS.has(type) || !looksLikeUuid(id)) {
+  const routeKind = normalizeInspectorKind(type);
+  if (!LIVE_INSPECTOR_KINDS.has(routeKind) || !looksLikeUuid(id)) {
     return null;
   }
 
   try {
-    const response = await fetch(`${controlPlaneBaseUrl()}/query/inspectors/${type}/${id}`, {
+    const response = await fetch(`${controlPlaneBaseUrl()}/query/inspectors/${routeKind}/${id}`, {
       headers: {
         Authorization: `Bearer ${controlPlaneToken()}`,
       },
@@ -411,9 +440,185 @@ function readRecentJobs(live: LivePlaceView): LiveRecentJob[] {
   return jobs;
 }
 
+function buildLiveCreationSession(
+  session: Record<string, unknown> | undefined,
+  id: string
+): CreationSession {
+  const deskType = mapDeskType(readString(session ?? {}, 'place'));
+  const kind = readString(session ?? {}, 'kind') ?? 'object';
+  const warnings = readStringArray(session ?? {}, 'warnings').map((warning, index) => ({
+    id: `${id}-warning-${index}`,
+    severity: 'caution' as const,
+    title: 'Warning',
+    body: warning,
+    canProceed: true,
+  }));
+  const missingFields = readRecordArray(session ?? {}, 'missing_fields').map((field, index) => ({
+    id: readString(field, 'key') ?? `${id}-field-${index}`,
+    label: readString(field, 'label') ?? `Field ${index + 1}`,
+    type: 'text' as const,
+    required: readBoolean(field, 'required') ?? true,
+    value: readDraftValue(session ?? {}, readString(field, 'key')),
+    description: 'Imported from canonical creation session state.',
+  }));
+  const draftFields = Object.entries(readObject(session ?? {}, 'draft')).map(([key, value]) => ({
+    id: `${id}-draft-${key}`,
+    label: startCase(key),
+    type: 'text' as const,
+    required: false,
+    value: stringifyDraftValue(value),
+    description: 'Captured in canonical session draft.',
+  }));
+  const fields = mergeSessionFields(missingFields, draftFields);
+  const proposedActions = readRecordArray(session ?? {}, 'proposed_actions');
+  const resultRefs = readRecordArray(session ?? {}, 'result_refs');
+  const rawStatus = readString(session ?? {}, 'status') ?? 'Collecting';
+
+  return {
+    id,
+    deskType,
+    title: `${deskLabel(deskType)} ${kind}`.trim(),
+    description: `Canonical ${kind} creation session.`,
+    phase: mapCreationPhase(rawStatus, missingFields.length, proposedActions.length, resultRefs.length),
+    status: mapCreationStatus(rawStatus),
+    intent: readString(session ?? {}, 'user_intent') ?? 'No intent recorded.',
+    fields,
+    warnings,
+    proposal:
+      proposedActions.length > 0
+        ? {
+            summary: readString(proposedActions[0], 'summary') ?? 'Canonical proposed action ready for review.',
+            objectType: kind,
+            objectLabel: readString(proposedActions[0], 'action_type') ?? kind,
+            fields: fields.slice(0, 6).map((field) => ({
+              label: field.label,
+              value: typeof field.value === 'boolean' ? String(field.value) : String(field.value ?? '—'),
+            })),
+            estimatedImpact: warnings.length > 0 ? `${warnings.length} warning(s) require review.` : 'No active warnings.',
+          }
+        : null,
+    result:
+      resultRefs.length > 0 || rawStatus === 'Completed' || rawStatus === 'Failed'
+        ? {
+            success: rawStatus === 'Completed',
+            objectId: readString(resultRefs[0] ?? {}, 'id') ?? undefined,
+            objectType: readString(resultRefs[0] ?? {}, 'domain') ?? undefined,
+            objectLabel: readString(resultRefs[0] ?? {}, 'label') ?? undefined,
+            message:
+              rawStatus === 'Completed'
+                ? 'Canonical creation session completed.'
+                : rawStatus === 'Failed'
+                  ? 'Creation session failed during execution.'
+                  : 'Creation session produced canonical references.',
+          }
+        : null,
+    createdAt: readString(session ?? {}, 'created_at') ?? new Date().toISOString(),
+    updatedAt: readString(session ?? {}, 'updated_at') ?? new Date().toISOString(),
+  };
+}
+
+function buildLiveJobLogView(sourceId: string, body: Record<string, unknown>): LogView {
+  const job = readObject(body, 'job');
+  const latestRun = readNullableObject(body, 'latest_run');
+  const artifacts = readRecordArray(body, 'artifacts');
+  const entries: LogEntry[] = [];
+
+  const jobCreatedAt = readString(job, 'created_at');
+  if (jobCreatedAt) {
+    entries.push({
+      id: `${sourceId}-created`,
+      timestamp: jobCreatedAt,
+      level: 'info' as const,
+      source: 'control-plane',
+      message: `Job ${readString(job, 'kind') ?? shortUuid(sourceId)} registered in canonical state.`,
+      jobId: sourceId,
+      traceId: shortUuid(sourceId),
+    });
+  }
+
+  const startedAt = readString(latestRun ?? {}, 'started_at');
+  if (startedAt) {
+    entries.push({
+      id: `${sourceId}-started`,
+      timestamp: startedAt,
+      level: 'info' as const,
+      source: 'worker',
+      message: `Execution started on ${readString(latestRun ?? {}, 'node_id') ?? 'assigned node'}.`,
+      jobId: sourceId,
+      traceId: shortUuid(sourceId),
+    });
+  }
+
+  const runSummary = readString(latestRun ?? {}, 'summary');
+  const finishedAt = readString(latestRun ?? {}, 'finished_at') ?? readString(job, 'updated_at');
+  if (runSummary && finishedAt) {
+    entries.push({
+      id: `${sourceId}-summary`,
+      timestamp: finishedAt,
+      level: mapLogLevel(readString(latestRun ?? {}, 'status')),
+      source: 'worker',
+      message: runSummary,
+      jobId: sourceId,
+      traceId: shortUuid(sourceId),
+    });
+  }
+
+  artifacts.forEach((artifact, index) => {
+    const timestamp = readString(artifact, 'created_at') ?? readString(job, 'updated_at') ?? new Date().toISOString();
+    const kind = readString(artifact, 'kind') ?? 'artifact';
+    const storagePath = readString(artifact, 'storage_path') ?? 'unknown';
+    entries.push({
+      id: `${sourceId}-artifact-${index}`,
+      timestamp,
+      level: kind === 'log_manifest' ? 'info' as const : 'debug' as const,
+      source: 'artifacts',
+      message:
+        kind === 'log_manifest'
+          ? `Log manifest recorded at ${storagePath}.`
+          : `Artifact recorded: ${kind} -> ${storagePath}`,
+      jobId: sourceId,
+      traceId: shortUuid(sourceId),
+    });
+  });
+
+  if (entries.length === 0) {
+    entries.push({
+      id: `${sourceId}-no-stream`,
+      timestamp: new Date().toISOString(),
+      level: 'warn',
+      source: 'lab-places',
+      message: 'No live log stream or manifest is available for this job yet.',
+      jobId: sourceId,
+      traceId: shortUuid(sourceId),
+    });
+  }
+
+  return {
+    sourceId,
+    sourceType: 'job',
+    sourceLabel: readString(job, 'kind') ?? `JOB ${shortUuid(sourceId)}`,
+    entries: entries.sort((a, b) => a.timestamp.localeCompare(b.timestamp)),
+    hasMore: false,
+  };
+}
+
 function readNumber(live: LivePlaceView, key: string): number {
   const value = live.data[key];
   return typeof value === 'number' ? value : 0;
+}
+
+function readObject(record: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = record[key];
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function readNullableObject(record: Record<string, unknown>, key: string): Record<string, unknown> | null {
+  const value = record[key];
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function readString(record: Record<string, unknown>, key: string): string | null {
@@ -424,6 +629,37 @@ function readString(record: Record<string, unknown>, key: string): string | null
 function readNullableString(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];
   return typeof value === 'string' ? value : null;
+}
+
+function readBoolean(record: Record<string, unknown>, key: string): boolean | null {
+  const value = record[key];
+  return typeof value === 'boolean' ? value : null;
+}
+
+function readStringArray(record: Record<string, unknown>, key: string): string[] {
+  const value = record[key];
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+function readRecordArray(record: Record<string, unknown>, key: string): Record<string, unknown>[] {
+  const value = record[key];
+  return Array.isArray(value)
+    ? value.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    : [];
+}
+
+function readDraftValue(record: Record<string, unknown>, key: string | null): string | boolean | undefined {
+  if (!key) return undefined;
+  const draft = readObject(record, 'draft');
+  const value = draft[key];
+  return typeof value === 'string' || typeof value === 'boolean' ? value : stringifyDraftValue(value);
+}
+
+function stringifyDraftValue(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value == null) return undefined;
+  return JSON.stringify(value);
 }
 
 function shortUuid(value: string): string {
@@ -454,6 +690,121 @@ function jobStatusToPanelStatus(status: string): 'ok' | 'warn' | 'error' | 'idle
       return 'error';
     default:
       return 'idle';
+  }
+}
+
+function mapCreationPhase(
+  status: string,
+  missingFieldCount: number,
+  proposedActionCount: number,
+  resultRefCount: number
+): CreationSession['phase'] {
+  switch (status) {
+    case 'Collecting':
+      return missingFieldCount > 0 ? 'missing-fields' : 'draft';
+    case 'Normalizing':
+    case 'Validating':
+      return missingFieldCount > 0 ? 'missing-fields' : proposedActionCount > 0 ? 'proposal' : 'warnings';
+    case 'AwaitingConfirmation':
+      return 'proposal';
+    case 'Executing':
+      return 'confirmation';
+    case 'Completed':
+    case 'Failed':
+      return resultRefCount > 0 || status === 'Completed' ? 'result' : 'warnings';
+    default:
+      return 'intent';
+  }
+}
+
+function mapCreationStatus(status: string): CreationSession['status'] {
+  switch (status) {
+    case 'Collecting':
+      return 'active';
+    case 'Normalizing':
+    case 'Validating':
+    case 'AwaitingConfirmation':
+      return 'waiting';
+    case 'Executing':
+      return 'confirmed';
+    case 'Completed':
+      return 'completed';
+    case 'Failed':
+      return 'failed';
+    default:
+      return 'waiting';
+  }
+}
+
+function mapDeskType(place: string | null): CreationSession['deskType'] {
+  switch (place) {
+    case 'lab-id':
+    case 'supabase':
+    case 'workflows':
+    case 'lab-512':
+      return place;
+    default:
+      return 'supabase';
+  }
+}
+
+function mergeSessionFields(
+  missingFields: CreationSession['fields'],
+  draftFields: CreationSession['fields']
+): CreationSession['fields'] {
+  const byId = new Map<string, CreationSession['fields'][number]>();
+  [...missingFields, ...draftFields].forEach((field) => {
+    if (!byId.has(field.id)) byId.set(field.id, field);
+  });
+  return Array.from(byId.values());
+}
+
+function startCase(value: string): string {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function deskLabel(deskType: CreationSession['deskType']): string {
+  switch (deskType) {
+    case 'lab-id':
+      return 'LAB ID';
+    case 'supabase':
+      return 'SUPABASE';
+    case 'workflows':
+      return 'WORK FLOWS';
+    case 'lab-512':
+      return 'LAB 512';
+  }
+}
+
+function mapLogLevel(status: string | null): 'debug' | 'info' | 'warn' | 'error' | 'fatal' {
+  switch ((status ?? '').toLowerCase()) {
+    case 'done':
+      return 'info';
+    case 'running':
+      return 'info';
+    case 'failed':
+      return 'error';
+    case 'cancelled':
+      return 'warn';
+    default:
+      return 'debug';
+  }
+}
+
+function normalizeInspectorKind(type: string): string {
+  switch (type.trim().toLowerCase()) {
+    case 'jobs':
+      return 'job';
+    case 'creation-session':
+    case 'creation-sessions':
+    case 'creation_sessions':
+      return 'creation_session';
+    default:
+      return type.trim().toLowerCase();
   }
 }
 

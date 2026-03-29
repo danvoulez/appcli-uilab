@@ -36,25 +36,34 @@ export function buildSoonPlaceSummary(item: PlaceCatalogItem): PlaceSummary {
 
 export function buildSoonPlaceDetail(item: PlaceCatalogItem): PlaceDetail {
   const summary = buildSoonPlaceSummary(item);
+  const workflowClosed = item.id === 'workflows';
 
   return {
     ...summary,
-    overview: `SOON: ${item.title} still needs a real backend read model. The UI is intentionally showing a placeholder instead of fake operational data.`,
+    overview: workflowClosed
+      ? 'SOON: workflows are constitutionally out of the founding slice for now. This surface stays explicit until the real workflow read/write boundary is opened.'
+      : `SOON: ${item.title} still needs a real backend read model. The UI is intentionally showing a placeholder instead of fake operational data.`,
     panels: [
       {
         title: 'Read Model Status',
         items: [
           { label: 'Surface', value: item.title, status: 'idle' },
           { label: 'Backend query', value: 'SOON', status: 'warn' },
-          { label: 'Operational truth', value: 'not connected', status: 'warn' },
+          {
+            label: 'Operational truth',
+            value: workflowClosed ? 'founding slice closed' : 'not connected',
+            status: 'warn',
+          },
         ],
       },
     ],
     actions: [
       {
         id: 'soon',
-        label: 'Coming soon',
-        description: 'This place will light up once its real read model exists.',
+        label: workflowClosed ? 'Workflow slice closed' : 'Coming soon',
+        description: workflowClosed
+          ? 'The workflow domain exists architecturally, but it is intentionally not opened in the founding slice runtime yet.'
+          : 'This place will light up once its real read model exists.',
         variant: 'ghost',
         disabled: true,
       },
@@ -70,7 +79,7 @@ export function buildSoonPlaceDetail(item: PlaceCatalogItem): PlaceDetail {
       {
         title: 'SOON',
         rows: [
-          { label: 'Reason', value: 'No canonical query endpoint yet' },
+          { label: 'Reason', value: workflowClosed ? 'Workflow founding slice intentionally closed' : 'No canonical query endpoint yet' },
           { label: 'Policy', value: 'Placeholder allowed, fake truth forbidden' },
         ],
       },
@@ -120,15 +129,15 @@ export function buildSoonInspector(type: string, id: string): AnyInspector | nul
       id,
       type: 'workflow',
       canonicalName: `WORKFLOW ${id}`,
-      descriptor: 'SOON placeholder inspector',
+      descriptor: 'Founding slice closed',
       status: 'attention',
       createdAt: now,
       updatedAt: now,
       triggerType: 'manual',
       steps: 0,
       publishState: 'draft',
-      inputSource: 'SOON',
-      outputTarget: 'SOON',
+      inputSource: 'Founding slice closed',
+      outputTarget: 'Founding slice closed',
       lastRunStatus: 'attention',
     };
   }

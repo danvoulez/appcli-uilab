@@ -6,7 +6,6 @@
  */
 
 import type { AttachedFile, CreationSession, SessionDeskType, SessionField } from './types';
-import { buildSoonSession } from './soon';
 
 class CommandClient {
   // ─── Agent chat ───────────────────────────────────────────────────────────
@@ -40,7 +39,9 @@ class CommandClient {
     intent: string
   ): Promise<{ sessionId: string }> {
     await delay(100);
-    return { sessionId: `session-${deskType}-soon` };
+    throw new Error(
+      `SOON: creation session open boundary is not wired yet for ${deskType}. Refusing fake session start for intent "${intent}".`
+    );
   }
 
   async updateSessionFields(
@@ -48,13 +49,14 @@ class CommandClient {
     fields: SessionField[]
   ): Promise<CreationSession> {
     await delay(100);
-    const session = buildSoonSession(sessionId);
-    return { ...session, fields };
+    throw new Error(
+      `SOON: creation session continue boundary is not wired yet for ${sessionId}. Refusing fake field update with ${fields.length} field(s).`
+    );
   }
 
   async confirmSession(sessionId: string): Promise<CreationSession> {
     await delay(100);
-    return buildSoonSession(sessionId);
+    throw new Error(`SOON: creation session confirm boundary is not wired yet for ${sessionId}.`);
   }
 
   async cancelSession(sessionId: string): Promise<void> {

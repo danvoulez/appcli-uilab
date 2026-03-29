@@ -63,14 +63,14 @@ export default async function NewSessionPage({ searchParams }: Props) {
             <p className="text-sm text-white/55 leading-relaxed">{cfg.description}</p>
           </div>
           <div className="space-y-2">
-            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/30">Demo session</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/30">Placeholder session</p>
             <Link
               href={`/creation-sessions/${cfg.sessionId}`}
               className="flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/9 border border-white/8 hover:border-white/15 transition-all group"
             >
               <div>
-                <p className="text-sm font-semibold text-white">Open demo session</p>
-                <p className="text-[10px] text-white/35 mt-0.5">{cfg.sessionId}</p>
+                <p className="text-sm font-semibold text-white">Open explicit SOON session</p>
+                <p className="text-[10px] text-white/35 mt-0.5">Command boundary not live yet · {cfg.sessionId}</p>
               </div>
               <ArrowRight size={16} className="text-white/30 group-hover:text-white/60 transition-colors" />
             </Link>
@@ -88,7 +88,7 @@ export default async function NewSessionPage({ searchParams }: Props) {
       breadcrumbs={[{ label: 'Creation Sessions' }, { label: 'New' }]}
     >
       <div className="max-w-2xl space-y-5">
-        <p className="text-sm text-white/45">Select the desk that handles this type of object.</p>
+        <p className="text-sm text-white/45">Select the desk that handles this type of object. Desks without a live command boundary stay explicit about it.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {Object.entries(deskConfig).map(([key, cfg]) => (
             <Link

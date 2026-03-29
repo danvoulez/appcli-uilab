@@ -8,6 +8,7 @@ import {
   FileText, File as GenericFile, Archive, FileQuestion,
 } from 'lucide-react';
 import type { PlaceDetail, AttachedFile, FileKind } from '@/lib/types';
+import { commandClient } from '@/lib/command-client';
 import { FilePreviewSheet } from './FilePreviewSheet';
 
 // ─── File utilities ──────────────────────────────────────────────────────────
@@ -84,133 +85,6 @@ const statusDot: Record<string, string> = {
   idle: 'bg-white/20',
 };
 
-// ─── Mock response engine ────────────────────────────────────────────────────
-// Swap this call for commandClient.sendChatMessage() when the real backend is ready.
-
-function respond(
-  place: PlaceDetail,
-  raw: string,
-  files?: AttachedFile[]
-): Pick<ChatMsg, 'text' | 'card'> {
-  // ── File attachment acknowledgement ─────────────────────────────────────
-  if (files && files.length > 0) {
-    const label = files.length === 1
-      ? `"${files[0].name}"`
-      : `${files.length} files`;
-    return {
-      text: `Received ${label}${raw.trim() ? ` — and your message.` : '.'} Processing…`,
-    };
-  }
-
-  const q = raw.toLowerCase();
-
-  // ── Panel keywords ──────────────────────────────────────────────────────
-  for (const panel of place.panels) {
-    const words = panel.title.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
-    if (words.some((w) => q.includes(w))) {
-      return {
-        text: `Here's the current ${panel.title}:`,
-        card: {
-          type: 'data',
-          title: panel.title,
-          items: panel.items.map((i) => ({
-            label: i.label,
-            value: i.value ?? i.status ?? '',
-            status: i.status,
-          })),
-        },
-      };
-    }
-  }
-
-  // ── Signals / health / status ───────────────────────────────────────────
-  if (/signal|health|status|ready|alive|check|monitor|pulse/.test(q)) {
-    return {
-      text: `${place.shortLabel} is currently **${place.status}**. Key signals:`,
-      card: {
-        type: 'data',
-        title: 'Key Signals',
-        items: place.primarySignals.map((s) => ({ label: s.label, value: s.value })),
-      },
-    };
-  }
-
-  // ── Readiness / lights ──────────────────────────────────────────────────
-  if (/readiness|online|offline|connectivity|integrit|activit/.test(q)) {
-    return {
-      text: 'Here are the readiness indicators:',
-      card: {
-        type: 'data',
-        title: 'Readiness',
-        items: place.statusLights.map((l) => ({
-          label: l.label,
-          value: l.status === 'on' ? 'Online' : l.status === 'warn' ? 'Warning' : 'Offline',
-          status: l.status === 'on' ? 'ok' : l.status === 'warn' ? 'warn' : 'error',
-        })),
-      },
-    };
-  }
-
-  // ── Attention / alerts ──────────────────────────────────────────────────
-  if (/alert|warn|issue|problem|attention|broken|fail|error|incident/.test(q)) {
-    if (place.attention) {
-      return {
-        text: 'There is one active attention item:',
-        card: {
-          type: 'alert',
-          title: place.attention.title,
-          items: [{ label: 'Details', value: place.attention.body }],
-        },
-      };
-    }
-    return { text: 'No active alerts or attention items. All systems nominal.' };
-  }
-
-  // ── Relations ───────────────────────────────────────────────────────────
-  if (/relation|connect|link|depend|integrat|interact/.test(q)) {
-    if (place.relations.length === 0) {
-      return { text: 'No known relations registered for this place.' };
-    }
-    return {
-      text: `${place.shortLabel} has ${place.relations.length} known relation${place.relations.length !== 1 ? 's' : ''}:`,
-      card: {
-        type: 'data',
-        title: 'Relations',
-        items: place.relations.map((r) => ({ label: r.place, value: r.nature })),
-      },
-    };
-  }
-
-  // ── Overview / describe ─────────────────────────────────────────────────
-  if (/what|describ|overview|tell|explain|about|summar/.test(q)) {
-    return { text: place.overview };
-  }
-
-  // ── Action keyword match ────────────────────────────────────────────────
-  for (const action of place.actions) {
-    const words = action.label.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
-    if (words.some((w) => q.includes(w))) {
-      if (action.href) {
-        return {
-          text: `I can take you to "${action.label}" directly.`,
-          card: { type: 'link', title: action.label, items: [], href: action.href },
-        };
-      }
-      return {
-        text: `"${action.label}" is available. This action requires confirmation — want to proceed?`,
-      };
-    }
-  }
-
-  // ── Default ─────────────────────────────────────────────────────────────
-  const defaults = [
-    `${place.overview} What would you like to do?`,
-    `I'm watching ${place.title}. Status is **${place.status}**. Ask me about signals, panels, or any action.`,
-    `You can ask me about ${place.primarySignals.map((s) => s.label).join(', ')}, or any operational task.`,
-  ];
-  return { text: defaults[Math.floor(Math.random() * defaults.length)] };
-}
-
 // ─── Quick prompts ────────────────────────────────────────────────────────────
 
 function getQuickPrompts(place: PlaceDetail): string[] {
@@ -229,6 +103,14 @@ function getQuickPrompts(place: PlaceDetail): string[] {
 function getGreeting(place: PlaceDetail): string {
   const first = place.overview.split(/[.!?]/)[0].trim();
   return `I'm the ${place.shortLabel} agent. ${first}. What would you like to do?`;
+}
+
+function runtimeErrorCard(message: string): AgentCard {
+  return {
+    type: 'alert',
+    title: 'Agent Runtime',
+    items: [{ label: 'Status', value: message }],
+  };
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -474,16 +356,32 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
       setMessages((prev) => [...prev, userMsg]);
 
       setIsTyping(true);
-      const delay = 700 + Math.random() * 500;
-      setTimeout(() => {
-        // TODO: replace respond() with commandClient.sendChatMessage(place.id, text, filesToSend)
-        const { text: respText, card } = respond(place, text, filesToSend);
-        setMessages((prev) => [
-          ...prev,
-          { id: `a-${Date.now()}`, role: 'agent', text: respText, card },
-        ]);
-        setIsTyping(false);
-      }, delay);
+      void (async () => {
+        try {
+          await commandClient.sendChatMessage(place.id, text, filesToSend);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `a-${Date.now()}`,
+              role: 'agent',
+              text: 'Command accepted by the agent runtime.',
+            },
+          ]);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Agent runtime failed to respond.';
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `a-${Date.now()}`,
+              role: 'agent',
+              text: message,
+              card: runtimeErrorCard(message),
+            },
+          ]);
+        } finally {
+          setIsTyping(false);
+        }
+      })();
     },
     [isTyping, pendingFiles, place]
   );
