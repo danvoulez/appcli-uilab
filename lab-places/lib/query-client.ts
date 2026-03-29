@@ -45,6 +45,15 @@ type LiveTimelineEntry = {
   summary: string;
 };
 
+type LiveRecentJob = {
+  id: string;
+  kind: string;
+  status: string;
+  target_node_id?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 const LIVE_PLACE_IDS = new Set(['lab-256', 'lab-8gb', 'lab-512', 'supabase']);
 const LIVE_INSPECTOR_KINDS = new Set(['job']);
 
@@ -221,13 +230,18 @@ function mergeLivePlaceSummary(item: PlaceCatalogItem, live: LivePlaceView): Pla
 
 function mergeLivePlaceDetail(item: PlaceCatalogItem, live: LivePlaceView): PlaceDetail {
   const summary = mergeLivePlaceSummary(item, live);
+  const recentJobs = readRecentJobs(live);
 
   return {
     ...summary,
     overview: live.summary,
-    panels: [snapshotPanel(live)],
+    panels: [
+      snapshotPanel(live),
+      ...(recentJobs.length > 0 ? [recentJobsPanel(recentJobs)] : []),
+    ],
     actions: [
       { id: 'agent', label: 'Open agent shell', variant: 'primary', href: `/places/${item.id}/agent` },
+      ...recentJobActions(recentJobs),
     ],
     deepDetails: [snapshotDetails(live)],
     relations: [],
@@ -347,9 +361,100 @@ function snapshotDetails(live: LivePlaceView): PlaceDetail['deepDetails'][number
   };
 }
 
+function recentJobsPanel(recentJobs: LiveRecentJob[]): PlaceDetail['panels'][number] {
+  return {
+    title: 'Recent Jobs',
+    items: recentJobs.slice(0, 5).map((job) => ({
+      label: `${job.kind} · ${shortUuid(job.id)}`,
+      value: job.status,
+      note: shortTimestamp(job.updated_at),
+      status: jobStatusToPanelStatus(job.status),
+    })),
+  };
+}
+
+function recentJobActions(recentJobs: LiveRecentJob[]): PlaceDetail['actions'] {
+  return recentJobs.slice(0, 3).map((job, index) => ({
+    id: `recent-job-${index}`,
+    label: `Inspect ${job.kind} · ${shortUuid(job.id)}`,
+    variant: 'secondary' as const,
+    href: `/inspectors/jobs/${job.id}`,
+  }));
+}
+
+function readRecentJobs(live: LivePlaceView): LiveRecentJob[] {
+  const value = live.data.recent_jobs;
+  if (!Array.isArray(value)) return [];
+
+  const jobs = value
+    .map((entry): LiveRecentJob | null => {
+      if (!entry || typeof entry !== 'object') return null;
+      const record = entry as Record<string, unknown>;
+      const id = readString(record, 'id');
+      const kind = readString(record, 'kind');
+      const status = readString(record, 'status');
+      const createdAt = readString(record, 'created_at');
+      const updatedAt = readString(record, 'updated_at');
+      if (!id || !kind || !status || !createdAt || !updatedAt) return null;
+
+      return {
+        id,
+        kind,
+        status,
+        target_node_id: readNullableString(record, 'target_node_id'),
+        created_at: createdAt,
+        updated_at: updatedAt,
+      };
+    })
+    .filter((job): job is LiveRecentJob => Boolean(job));
+
+  return jobs;
+}
+
 function readNumber(live: LivePlaceView, key: string): number {
   const value = live.data[key];
   return typeof value === 'number' ? value : 0;
+}
+
+function readString(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  return typeof value === 'string' ? value : null;
+}
+
+function readNullableString(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  return typeof value === 'string' ? value : null;
+}
+
+function shortUuid(value: string): string {
+  return value.slice(0, 8);
+}
+
+function shortTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function jobStatusToPanelStatus(status: string): 'ok' | 'warn' | 'error' | 'idle' {
+  switch (status.toLowerCase()) {
+    case 'done':
+      return 'ok';
+    case 'running':
+      return 'warn';
+    case 'failed':
+    case 'cancelled':
+      return 'error';
+    default:
+      return 'idle';
+  }
 }
 
 function controlPlaneBaseUrl(): string {
