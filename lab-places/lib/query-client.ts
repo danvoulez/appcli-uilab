@@ -260,19 +260,22 @@ function mergeLivePlaceSummary(item: PlaceCatalogItem, live: LivePlaceView): Pla
 function mergeLivePlaceDetail(item: PlaceCatalogItem, live: LivePlaceView): PlaceDetail {
   const summary = mergeLivePlaceSummary(item, live);
   const recentJobs = readRecentJobs(live);
+  const runtimePanel = readRuntimePanel(item.id, live);
+  const runtimeDetails = readRuntimeDetails(item.id, live);
 
   return {
     ...summary,
     overview: live.summary,
     panels: [
       snapshotPanel(live),
+      ...(runtimePanel ? [runtimePanel] : []),
       ...(recentJobs.length > 0 ? [recentJobsPanel(recentJobs)] : []),
     ],
     actions: [
       { id: 'agent', label: 'Open agent shell', variant: 'primary', href: `/places/${item.id}/agent` },
       ...recentJobActions(recentJobs),
     ],
-    deepDetails: [snapshotDetails(live)],
+    deepDetails: [snapshotDetails(live), ...(runtimeDetails ? [runtimeDetails] : [])],
     relations: [],
   };
 }
@@ -409,6 +412,87 @@ function recentJobActions(recentJobs: LiveRecentJob[]): PlaceDetail['actions'] {
     variant: 'secondary' as const,
     href: `/inspectors/jobs/${job.id}`,
   }));
+}
+
+function readRuntimePanel(
+  placeId: string,
+  live: LivePlaceView
+): PlaceDetail['panels'][number] | null {
+  if (placeId !== 'lab-512') return null;
+
+  const profiles = readRuntimeProfiles(live);
+  if (profiles.length === 0) return null;
+
+  return {
+    title: 'Inference Runtime',
+    items: profiles.map((profile) => ({
+      label: startCase(profile.name),
+      value: profile.model,
+      note: profile.available ? 'available on LAB 512' : 'not installed on LAB 512',
+      status: profile.available ? 'ok' : 'warn',
+    })),
+  };
+}
+
+function readRuntimeDetails(
+  placeId: string,
+  live: LivePlaceView
+): PlaceDetail['deepDetails'][number] | null {
+  if (placeId !== 'lab-512') return null;
+
+  const runtime = readObject(live.data, 'runtime_metadata_json');
+  const agentRuntime = readObject(runtime, 'agent_runtime');
+  const profiles = readRuntimeProfiles(live);
+  if (Object.keys(agentRuntime).length === 0 && profiles.length === 0) return null;
+
+  const rows: PlaceDetail['deepDetails'][number]['rows'] = [];
+  const nodeId = readString(live.data, 'node_id');
+  if (nodeId) {
+    rows.push({ label: 'Inference node', value: nodeId });
+  }
+
+  const ollamaStatus = readString(agentRuntime, 'ollama_status');
+  if (ollamaStatus) {
+    rows.push({ label: 'Ollama status', value: ollamaStatus });
+  }
+
+  const ollamaError = readString(agentRuntime, 'ollama_error');
+  if (ollamaError) {
+    rows.push({ label: 'Ollama error', value: ollamaError });
+  }
+
+  profiles.forEach((profile) => {
+    rows.push({
+      label: `${startCase(profile.name)} profile`,
+      value: `${profile.model} · ${profile.available ? 'available' : 'missing'}`,
+    });
+  });
+
+  return rows.length > 0
+    ? {
+        title: 'Runtime Profiles',
+        rows,
+      }
+    : null;
+}
+
+function readRuntimeProfiles(
+  live: LivePlaceView
+): Array<{ name: string; model: string; available: boolean }> {
+  const runtime = readObject(live.data, 'runtime_metadata_json');
+  const agentRuntime = readObject(runtime, 'agent_runtime');
+  const profiles = readObject(agentRuntime, 'inference_profiles');
+
+  return Object.entries(profiles)
+    .map(([name, value]) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      const record = value as Record<string, unknown>;
+      const model = readString(record, 'model');
+      const available = readBoolean(record, 'available');
+      if (!model || available == null) return null;
+      return { name, model, available };
+    })
+    .filter((profile): profile is { name: string; model: string; available: boolean } => Boolean(profile));
 }
 
 function readRecentJobs(live: LivePlaceView): LiveRecentJob[] {

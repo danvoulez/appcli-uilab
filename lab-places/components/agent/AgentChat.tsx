@@ -7,6 +7,7 @@ import {
   Plus, X, Camera, FileImage, FileVideo, FileMusic,
   FileText, File as GenericFile, Archive, FileQuestion,
 } from 'lucide-react';
+import type { AgentRuntimeAction } from '@/lib/agent-runtime';
 import type { PlaceDetail, AttachedFile, FileKind } from '@/lib/types';
 import { commandClient } from '@/lib/command-client';
 import { FilePreviewSheet } from './FilePreviewSheet';
@@ -74,6 +75,7 @@ interface ChatMsg {
   text: string;
   card?: AgentCard;
   files?: AttachedFile[];
+  pending?: boolean;
 }
 
 // ─── Status dot colour map ───────────────────────────────────────────────────
@@ -111,6 +113,34 @@ function runtimeErrorCard(message: string): AgentCard {
     title: 'Agent Runtime',
     items: [{ label: 'Status', value: message }],
   };
+}
+
+function runtimePendingCard(place: PlaceDetail): AgentCard {
+  return {
+    type: 'data',
+    title: 'Inference Dispatch',
+    items: [
+      { label: 'Node', value: 'LAB 512', status: 'ok' },
+      { label: 'Place', value: place.shortLabel, status: 'idle' },
+      { label: 'Status', value: 'Awaiting bounded inference result', status: 'warn' },
+    ],
+  };
+}
+
+function runtimeActionCard(action: AgentRuntimeAction): AgentCard {
+  return {
+    type: 'data',
+    title: 'Governed Handoff',
+    items: [
+      { label: 'Action', value: action.actionKind, status: 'warn' },
+      { label: 'Target', value: action.targetPlace, status: 'idle' },
+      { label: 'Status', value: action.status, status: 'ok' },
+    ],
+  };
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -290,6 +320,7 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
   const [messages, setMessages] = useState<ChatMsg[]>([
     { id: 'greeting', role: 'agent', text: getGreeting(place) },
   ]);
+  const [runtimeSessionId, setRuntimeSessionId] = useState<string | null>(null);
   const [input, setInput]             = useState('');
   const [isTyping, setIsTyping]       = useState(false);
   const [showPrompts, setShowPrompts] = useState(!initialQuery);
@@ -358,15 +389,78 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
       setIsTyping(true);
       void (async () => {
         try {
-          await commandClient.sendChatMessage(place.id, text, filesToSend);
+          const result = await commandClient.sendChatMessage(
+            place.id,
+            text,
+            filesToSend,
+            runtimeSessionId ?? undefined
+          );
+          setRuntimeSessionId(result.sessionId);
+
+          if (!result.pending && result.replyText) {
+            const replyText = result.replyText;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `a-${Date.now()}`,
+                role: 'agent',
+                text: replyText,
+                card: result.action ? runtimeActionCard(result.action) : undefined,
+              },
+            ]);
+            setIsTyping(false);
+            return;
+          }
+
+          const pendingId = `a-${Date.now()}`;
           setMessages((prev) => [
             ...prev,
             {
-              id: `a-${Date.now()}`,
+              id: pendingId,
               role: 'agent',
-              text: 'Command accepted by the agent runtime.',
+              text: result.acknowledgement,
+              card: runtimePendingCard(place),
+              pending: true,
             },
           ]);
+
+          let settled = false;
+          for (let attempt = 0; attempt < 20; attempt += 1) {
+            await delay(900);
+            const snapshot = await commandClient.readAgentSession(result.sessionId);
+            if (!snapshot.pending && snapshot.replyText) {
+              settled = true;
+              const replyText = snapshot.replyText;
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === pendingId
+                    ? {
+                        ...msg,
+                        text: replyText,
+                        card: snapshot.action ? runtimeActionCard(snapshot.action) : undefined,
+                        pending: false,
+                      }
+                    : msg
+                )
+              );
+              break;
+            }
+          }
+
+          if (!settled) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === pendingId
+                  ? {
+                      ...msg,
+                      text: 'The runtime is still waiting for LAB 512. Continuity is preserved, but the final reply has not arrived yet.',
+                      card: runtimePendingCard(place),
+                      pending: false,
+                    }
+                  : msg
+              )
+            );
+          }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Agent runtime failed to respond.';
           setMessages((prev) => [
@@ -378,12 +472,11 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
               card: runtimeErrorCard(message),
             },
           ]);
-        } finally {
-          setIsTyping(false);
         }
+        setIsTyping(false);
       })();
     },
-    [isTyping, pendingFiles, place]
+    [isTyping, pendingFiles, place, runtimeSessionId]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

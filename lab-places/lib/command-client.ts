@@ -5,6 +5,7 @@
  * instead of pretending to mutate canonical state locally.
  */
 
+import type { AgentRuntimeSessionSnapshot, AgentRuntimeTurnResult } from './agent-runtime';
 import type { AttachedFile, CreationSession, SessionDeskType, SessionField } from './types';
 
 class CommandClient {
@@ -24,12 +25,45 @@ class CommandClient {
   async sendChatMessage(
     placeId: string,
     text: string,
-    attachments: AttachedFile[]
-  ): Promise<void> {
-    await delay(150);
-    throw new Error(
-      `SOON: agent command boundary not wired yet for ${placeId}. Refusing fake local write with ${attachments.length} attachments.`
-    );
+    attachments: AttachedFile[],
+    sessionId?: string
+  ): Promise<AgentRuntimeTurnResult> {
+    const response = await fetch(`/api/agent-runtime/places/${encodeURIComponent(placeId)}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sessionId,
+        text,
+        attachments: attachments.map((file) => ({
+          name: file.name,
+          size: file.size,
+          mimeType: file.mimeType,
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? `Agent runtime request failed for ${placeId}.`);
+    }
+
+    return (await response.json()) as AgentRuntimeTurnResult;
+  }
+
+  async readAgentSession(sessionId: string): Promise<AgentRuntimeSessionSnapshot> {
+    const response = await fetch(`/api/agent-runtime/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? `Agent session ${sessionId} could not be read.`);
+    }
+
+    return (await response.json()) as AgentRuntimeSessionSnapshot;
   }
 
   // ─── Creation Sessions ────────────────────────────────────────────────────
