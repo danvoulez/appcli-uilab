@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'LAB Places',
-    short_name: 'LAB',
+    name: 'minilab.work',
+    short_name: 'minilab',
     description: 'Operational cockpit for the LAB ecosystem',
     id: '/',
     start_url: '/',
@@ -48,7 +48,7 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       {
-        name: 'LAB Places',
+        name: 'minilab.work',
         url: '/',
         description: 'View all operational places',
       },

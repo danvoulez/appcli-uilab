@@ -121,7 +121,7 @@ export interface PlaceDetail extends PlaceSummary {
 
 // ─── Inspector ────────────────────────────────────────────────────────────
 
-export type ObjectType = 'entity' | 'project' | 'workflow' | 'job';
+export type ObjectType = 'entity' | 'project' | 'workflow' | 'job' | 'terminal_session';
 
 export interface InspectorObject {
   id: string;
@@ -141,6 +141,7 @@ export interface EntityInspector extends InspectorObject {
   capabilities: string[];
   credentials: Array<{ label: string; validity: string; status: 'ok' | 'warn' | 'expired' }>;
   trustLinks: Array<{ target: string; mechanism: string }>;
+  provenance?: Array<{ label: string; value: string }>;
 }
 
 export interface ProjectInspector extends InspectorObject {
@@ -176,7 +177,28 @@ export interface JobInspector extends InspectorObject {
   outputSummary?: string;
 }
 
-export type AnyInspector = EntityInspector | ProjectInspector | WorkflowInspector | JobInspector;
+export interface TerminalSessionInspector extends InspectorObject {
+  type: 'terminal_session';
+  terminalKind: string;
+  terminalStatus: string;
+  connectable: boolean;
+  runId?: string;
+  sessionId?: string;
+  placeId?: string;
+  machineOrNodeId?: string;
+  providerOrExecutionSubstrate?: string;
+  transcriptPreview: Array<{ stream: string; text: string }>;
+  lastInterventionCommand?: string;
+  lastInterventionQueuedAt?: string;
+  closedAt?: string;
+}
+
+export type AnyInspector =
+  | EntityInspector
+  | ProjectInspector
+  | WorkflowInspector
+  | JobInspector
+  | TerminalSessionInspector;
 
 // ─── Timeline ─────────────────────────────────────────────────────────────
 

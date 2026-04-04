@@ -19,14 +19,14 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: 'LAB Places',
-    template: '%s — LAB Places',
+    default: 'minilab.work',
+    template: '%s — minilab.work',
   },
   description: 'Operational cockpit for the LAB ecosystem',
-  applicationName: 'LAB Places',
+  applicationName: 'minilab.work',
   appleWebApp: {
     capable: true,
-    title: 'LAB Places',
+    title: 'minilab.work',
     // black-translucent: status bar blends into the app, maximising screen real estate.
     // Requires viewport-fit=cover to avoid content sitting under the status bar.
     statusBarStyle: 'black-translucent',

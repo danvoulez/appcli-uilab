@@ -13,7 +13,7 @@ export default async function AgentPage({ params, searchParams }: Props) {
   const place = await queryClient.getPlace(placeId);
   if (!place) notFound();
   // q comes from ActionRail non-href actions: ?q=<action label>
-  return <AgentChat place={place} initialQuery={q} />;
+  return <AgentChat key={`${place.id}:${q ?? ''}`} place={place} initialQuery={q} />;
 }
 
 export async function generateStaticParams() {

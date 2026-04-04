@@ -38,7 +38,7 @@ export function OperatorShell({ title, descriptor, breadcrumbs, badge, actions, 
             <div className="flex items-center gap-1.5 mb-3">
               <Link href="/" className="flex items-center gap-1 text-[10px] font-semibold text-white/35 hover:text-white/65 uppercase tracking-wider transition-colors">
                 <ChevronLeft size={11} />
-                LAB Places
+                minilab.work
               </Link>
               {breadcrumbs.map((crumb, i) => (
                 <span key={i} className="flex items-center gap-1.5">

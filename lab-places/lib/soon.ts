@@ -16,8 +16,64 @@ import type {
   TimelineEvent,
 } from './types';
 import type { PlaceCatalogItem } from './place-catalog';
+import {
+  buildAppsPlaceActions,
+  buildAppsPlaceDetails,
+  buildAppsPlacePanels,
+  buildAppsPlaceRelations,
+  buildAppsPlaceStatusLights,
+  buildAppsPlaceSummarySignals,
+  buildAppsPlaceAttention,
+} from './apps-catalog';
+import { ontologyRows } from './minilab-ontology';
 
 export function buildSoonPlaceSummary(item: PlaceCatalogItem): PlaceSummary {
+  if (item.id === 'apps') {
+    return {
+      id: item.id,
+      title: item.title,
+      shortLabel: item.shortLabel,
+      descriptor: item.descriptor,
+      shortSummary: 'Apps is the place where operator apps, tools, consoles, and launch surfaces are opened.',
+      backgroundImage: item.backgroundImage,
+      accentColor: item.accentColor,
+      textColor: item.textColor,
+      status: 'attention',
+      statusLights: buildAppsPlaceStatusLights(),
+      primarySignals: buildAppsPlaceSummarySignals(),
+      attention: buildAppsPlaceAttention(),
+    };
+  }
+
+  if (item.id === 'workflows') {
+    return {
+      id: item.id,
+      title: item.title,
+      shortLabel: item.shortLabel,
+      descriptor: item.descriptor,
+      shortSummary:
+        'Orchestration surface for coordinated runs and approvals. App launch belongs in Apps, not here.',
+      backgroundImage: item.backgroundImage,
+      accentColor: item.accentColor,
+      textColor: item.textColor,
+      status: 'attention',
+      statusLights: [
+        { label: 'Connectivity', status: 'warn' },
+        { label: 'Integrity', status: 'warn' },
+        { label: 'Activity', status: 'off' },
+      ],
+      primarySignals: [
+        { label: 'Workflow slice', value: 'closed' },
+        { label: 'App launching', value: 'belongs in Apps' },
+        { label: 'Current truth', value: 'placeholder' },
+      ],
+      attention: {
+        title: 'Workflow place is not the launcher',
+        body: 'Use Apps to open Coding Agents. Use Workflows to supervise orchestration once runs exist.',
+      },
+    };
+  }
+
   return {
     id: item.id,
     title: item.title,
@@ -35,6 +91,138 @@ export function buildSoonPlaceSummary(item: PlaceCatalogItem): PlaceSummary {
 }
 
 export function buildSoonPlaceDetail(item: PlaceCatalogItem): PlaceDetail {
+  if (item.id === 'apps') {
+    const summary = buildSoonPlaceSummary(item);
+
+    return {
+      ...summary,
+      overview:
+        'Apps is the execution-surface place of minilab.work. It holds the catalog of operator apps, tools, consoles, and launch surfaces you open to act. Coding Agents belongs here as an app, and a spawned coding run is a session of that app, not a workflow.',
+      panels: [
+        {
+          title: 'Coding Agents Live View',
+          items: [
+            { label: 'Status', value: 'unavailable', status: 'warn' },
+            {
+              label: 'Reason',
+              value: 'No live control-plane app view is reaching this render yet',
+              status: 'warn',
+            },
+            {
+              label: 'What still works',
+              value: 'Apps catalog, launch grammar, and Coding Agents entry surface',
+              status: 'ok',
+            },
+          ],
+        },
+        ...buildAppsPlacePanels(),
+      ],
+      actions: buildAppsPlaceActions(),
+      deepDetails: [
+        {
+          title: 'Coding Agents Live Contract',
+          rows: [
+            { label: 'Expected source', value: '/query/apps/coding-agents' },
+            { label: 'Current state', value: 'not reaching this frontend render' },
+            { label: 'What is visible', value: 'Apps place, app catalog, Coding Agents launch entry, and agent surface' },
+            { label: 'What is missing', value: 'latest phase, checkpoint, terminal surface, fallback surface, and recent runs' },
+          ],
+        },
+        ...buildAppsPlaceDetails(),
+        {
+          title: 'Why Apps Exists',
+          rows: [
+            { label: 'Question', value: 'Are the operator tools ready, coherent, and launchable?' },
+            { label: 'Human feeling', value: 'This is where I open what I use to act.' },
+            { label: 'Boundary', value: 'Apps launches surfaces; Workflows coordinates sequences afterwards.' },
+          ],
+        },
+      ],
+      relations: buildAppsPlaceRelations(),
+    };
+  }
+
+  if (item.id === 'workflows') {
+    const summary = buildSoonPlaceSummary(item);
+
+    return {
+      ...summary,
+      overview:
+        'Workflows is the orchestration place. It tracks coordinated runs, approvals, retries, and handoffs between places. It is intentionally not the app catalog and not where Coding Agents should be launched from.',
+      panels: [
+        {
+          title: 'Place Contract',
+          items: [
+            { label: 'Role', value: 'orchestration', status: 'warn', note: 'Coordinates sequences once work exists.' },
+            { label: 'App launching', value: 'belongs in Apps', status: 'idle', note: 'Coding Agents should be opened from Apps.' },
+            { label: 'Founding slice', value: 'closed', status: 'warn', note: 'Workflow read/write is not open yet.' },
+          ],
+        },
+        {
+          title: 'Canonical Grammar',
+          items: ontologyRows(['workflow', 'app', 'session', 'run']).map((row) => ({
+            label: row.label,
+            value: row.value,
+            status: row.label === 'Workflow' ? 'warn' : 'idle',
+            note: row.note,
+          })),
+        },
+        {
+          title: 'What Will Live Here',
+          items: [
+            { label: 'Active runs', value: 'future', status: 'idle' },
+            { label: 'Failed steps', value: 'future', status: 'idle' },
+            { label: 'Approval queue', value: 'future', status: 'idle' },
+          ],
+        },
+      ],
+      actions: [
+        {
+          id: 'apps',
+          label: 'Open Apps place',
+          description: 'Go to Apps when you want to launch Coding Agents or another execution surface.',
+          variant: 'primary',
+          href: '/places/apps',
+        },
+        {
+          id: 'workflow-slice-closed',
+          label: 'Workflow slice closed',
+          description: 'The workflow domain exists architecturally, but its real surface is intentionally not opened yet.',
+          variant: 'ghost',
+          disabled: true,
+        },
+        {
+          id: 'agent',
+          label: 'Open workflows agent',
+          description: 'Use the agent to discuss orchestration intent even while the canonical workflow surface is closed.',
+          variant: 'secondary',
+          href: '/places/workflows/agent?q=Explain the current workflow role, what is closed, and how it differs from Apps.',
+        },
+      ],
+      deepDetails: [
+        {
+          title: 'Why This Place Exists',
+          rows: [
+            { label: 'Purpose', value: 'Turn intention into coordinated sequence' },
+            { label: 'Not for', value: 'launching Coding Agents or opening app sessions' },
+            { label: 'Launcher lives in', value: 'Apps' },
+          ],
+        },
+        {
+          title: 'Current State',
+          rows: [
+            { label: 'Slice status', value: 'founding slice intentionally closed' },
+            { label: 'Placeholder policy', value: 'explicit placeholder, fake truth forbidden' },
+          ],
+        },
+      ],
+      relations: [
+        { place: 'APPS', placeId: 'apps', nature: 'launches execution surfaces before orchestration begins' },
+        { place: 'LAB 512', placeId: 'lab-512', nature: 'executes work once a run is admitted' },
+      ],
+    };
+  }
+
   const summary = buildSoonPlaceSummary(item);
 
   return {
@@ -46,7 +234,11 @@ export function buildSoonPlaceDetail(item: PlaceCatalogItem): PlaceDetail {
         items: [
           { label: 'Surface', value: item.title, status: 'idle' },
           { label: 'Backend query', value: 'SOON', status: 'warn' },
-          { label: 'Operational truth', value: 'not connected', status: 'warn' },
+          {
+            label: 'Operational truth',
+            value: 'not connected',
+            status: 'warn',
+          },
         ],
       },
     ],
@@ -120,15 +312,15 @@ export function buildSoonInspector(type: string, id: string): AnyInspector | nul
       id,
       type: 'workflow',
       canonicalName: `WORKFLOW ${id}`,
-      descriptor: 'SOON placeholder inspector',
+      descriptor: 'Founding slice closed',
       status: 'attention',
       createdAt: now,
       updatedAt: now,
       triggerType: 'manual',
       steps: 0,
       publishState: 'draft',
-      inputSource: 'SOON',
-      outputTarget: 'SOON',
+      inputSource: 'Founding slice closed',
+      outputTarget: 'Founding slice closed',
       lastRunStatus: 'attention',
     };
   }
@@ -146,6 +338,22 @@ export function buildSoonInspector(type: string, id: string): AnyInspector | nul
       capabilities: ['SOON'],
       credentials: [{ label: 'SOON', validity: 'pending', status: 'warn' }],
       trustLinks: [{ target: 'SOON', mechanism: 'pending' }],
+    };
+  }
+
+  if (type === 'terminal_session') {
+    return {
+      id,
+      type: 'terminal_session',
+      canonicalName: `TERMINAL ${id}`,
+      descriptor: 'SOON placeholder inspector',
+      status: 'attention',
+      createdAt: now,
+      updatedAt: now,
+      terminalKind: 'spawned_run_terminal',
+      terminalStatus: 'pending',
+      connectable: false,
+      transcriptPreview: [{ stream: 'stdout', text: 'SOON: terminal session inspector not wired yet.' }],
     };
   }
 
@@ -212,7 +420,7 @@ export function buildSoonLogView(sourceType: string, sourceId: string): LogView 
     id: `${sourceType}-${sourceId}-soon`,
     timestamp: new Date().toISOString(),
     level: 'warn',
-    source: 'lab-places',
+    source: 'minilab.work',
     message: 'SOON: log streaming is not wired for this surface yet.',
     traceId: 'SOON',
   };
@@ -299,6 +507,7 @@ export function mapJobStatus(status: string): JobInspector['status'] {
 }
 
 export function normalizeTimelineObjectType(type: string): Timeline['objectType'] {
+  if (type === 'entity') return 'entity';
   if (type === 'project') return 'project';
   return 'job';
 }

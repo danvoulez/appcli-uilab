@@ -12,7 +12,7 @@ export function PlaceGrid({ summaries }: Props) {
     <div
       className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 w-full"
       role="list"
-      aria-label="LAB Places"
+      aria-label="minilab.work places"
     >
       {summaries.map((summary) => (
         <div key={summary.id} role="listitem">

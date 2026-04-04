@@ -5,8 +5,8 @@
  * instead of pretending to mutate canonical state locally.
  */
 
+import type { AgentRuntimeSessionSnapshot, AgentRuntimeTurnResult } from './agent-runtime';
 import type { AttachedFile, CreationSession, SessionDeskType, SessionField } from './types';
-import { buildSoonSession } from './soon';
 
 class CommandClient {
   // ─── Agent chat ───────────────────────────────────────────────────────────
@@ -25,12 +25,69 @@ class CommandClient {
   async sendChatMessage(
     placeId: string,
     text: string,
-    attachments: AttachedFile[]
-  ): Promise<void> {
-    await delay(150);
-    throw new Error(
-      `SOON: agent command boundary not wired yet for ${placeId}. Refusing fake local write with ${attachments.length} attachments.`
+    attachments: AttachedFile[],
+    sessionId?: string
+  ): Promise<AgentRuntimeTurnResult> {
+    const response = await fetch(`/api/agent-runtime/places/${encodeURIComponent(placeId)}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sessionId,
+        text,
+        attachments: attachments.map((file) => ({
+          name: file.name,
+          size: file.size,
+          mimeType: file.mimeType,
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? `Agent runtime request failed for ${placeId}.`);
+    }
+
+    return (await response.json()) as AgentRuntimeTurnResult;
+  }
+
+  async readAgentSession(sessionId: string): Promise<AgentRuntimeSessionSnapshot> {
+    const response = await fetch(`/api/agent-runtime/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? `Agent session ${sessionId} could not be read.`);
+    }
+
+    return (await response.json()) as AgentRuntimeSessionSnapshot;
+  }
+
+  async continueTerminalSession(
+    terminalSessionId: string,
+    command: string
+  ): Promise<{ terminalSessionId: string; status: string }> {
+    const response = await fetch(
+      `/api/agent-runtime/terminal-sessions/${encodeURIComponent(terminalSessionId)}/continue`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ command }),
+      }
     );
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? `Terminal session ${terminalSessionId} could not be continued.`);
+    }
+
+    const body = (await response.json()) as { terminalSessionId: string; status: string };
+    return body;
   }
 
   // ─── Creation Sessions ────────────────────────────────────────────────────
@@ -40,7 +97,9 @@ class CommandClient {
     intent: string
   ): Promise<{ sessionId: string }> {
     await delay(100);
-    return { sessionId: `session-${deskType}-soon` };
+    throw new Error(
+      `SOON: creation session open boundary is not wired yet for ${deskType}. Refusing fake session start for intent "${intent}".`
+    );
   }
 
   async updateSessionFields(
@@ -48,13 +107,14 @@ class CommandClient {
     fields: SessionField[]
   ): Promise<CreationSession> {
     await delay(100);
-    const session = buildSoonSession(sessionId);
-    return { ...session, fields };
+    throw new Error(
+      `SOON: creation session continue boundary is not wired yet for ${sessionId}. Refusing fake field update with ${fields.length} field(s).`
+    );
   }
 
   async confirmSession(sessionId: string): Promise<CreationSession> {
     await delay(100);
-    return buildSoonSession(sessionId);
+    throw new Error(`SOON: creation session confirm boundary is not wired yet for ${sessionId}.`);
   }
 
   async cancelSession(sessionId: string): Promise<void> {

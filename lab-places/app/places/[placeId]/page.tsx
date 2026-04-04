@@ -66,7 +66,7 @@ export default async function PlacePage({ params }: Props) {
           className="flex items-center gap-1 text-[11px] md:text-[9px] font-bold uppercase tracking-[0.14em] text-white/30 hover:text-white/55 transition-colors"
         >
           <ArrowLeft size={10} />
-          LAB Places
+          minilab.work
         </Link>
         <span className="text-[11px] md:text-[9px] text-white/18">/</span>
         <span

@@ -1,16 +1,26 @@
 import Link from 'next/link';
 import { OperatorShell } from '@/components/shell/OperatorShell';
+import { LabIdRegistrationForm } from '@/components/lab-id/LabIdRegistrationForm';
 import { ArrowRight } from 'lucide-react';
 
 interface Props {
-  searchParams: Promise<{ desk?: string }>;
+  searchParams: Promise<{
+    desk?: string;
+    canonicalName?: string;
+    aliases?: string;
+    description?: string;
+    intakeMedium?: 'text' | 'photo' | 'document' | 'file' | 'agent';
+    sourceLabel?: string;
+    sourceReference?: string;
+    sourceSurface?: string;
+  }>;
 }
 
 const deskConfig = {
   'lab-id': {
     label: 'LAB ID',
     descriptor: 'Identity',
-    description: 'Register a new principal, entity, or credential in the identity registry.',
+    description: 'Register a new principal, entity, or credential in the identity registry, using text, photos, screenshots, PDFs, or other files as intake context.',
     color: '#1A1A1A',
     accent: 'border-white/15 hover:border-white/30',
     sessionId: 'session-lab-id-soon',
@@ -42,7 +52,16 @@ const deskConfig = {
 };
 
 export default async function NewSessionPage({ searchParams }: Props) {
-  const { desk } = await searchParams;
+  const {
+    desk,
+    canonicalName,
+    aliases,
+    description,
+    intakeMedium,
+    sourceLabel,
+    sourceReference,
+    sourceSurface,
+  } = await searchParams;
 
   // If a specific desk is requested, redirect-style forward
   if (desk && desk in deskConfig) {
@@ -62,15 +81,40 @@ export default async function NewSessionPage({ searchParams }: Props) {
             <h2 className="text-lg font-black text-white mb-2">{cfg.label}</h2>
             <p className="text-sm text-white/55 leading-relaxed">{cfg.description}</p>
           </div>
+          {desk === 'lab-id' && (
+            <>
+              <Link
+                href="/places/lab-id/agent?q=Help me start a LAB ID registration intake. I may attach photos, screenshots, PDFs, or notes."
+                className="flex items-center justify-between p-4 rounded-xl bg-white/6 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-white">Open LAB ID intake in the agent</p>
+                  <p className="text-[10px] text-white/35 mt-0.5">Best current path for registration help with text and files.</p>
+                </div>
+                <ArrowRight size={16} className="text-white/30 group-hover:text-white/60 transition-colors" />
+              </Link>
+              <LabIdRegistrationForm
+                initialValues={{
+                  canonicalName,
+                  aliases,
+                  description,
+                  intakeMedium,
+                  sourceLabel,
+                  sourceReference,
+                  sourceSurface,
+                }}
+              />
+            </>
+          )}
           <div className="space-y-2">
-            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/30">Demo session</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/30">Placeholder session</p>
             <Link
               href={`/creation-sessions/${cfg.sessionId}`}
               className="flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/9 border border-white/8 hover:border-white/15 transition-all group"
             >
               <div>
-                <p className="text-sm font-semibold text-white">Open demo session</p>
-                <p className="text-[10px] text-white/35 mt-0.5">{cfg.sessionId}</p>
+                <p className="text-sm font-semibold text-white">Open explicit SOON session</p>
+                <p className="text-[10px] text-white/35 mt-0.5">Command boundary not live yet · {cfg.sessionId}</p>
               </div>
               <ArrowRight size={16} className="text-white/30 group-hover:text-white/60 transition-colors" />
             </Link>
@@ -88,7 +132,7 @@ export default async function NewSessionPage({ searchParams }: Props) {
       breadcrumbs={[{ label: 'Creation Sessions' }, { label: 'New' }]}
     >
       <div className="max-w-2xl space-y-5">
-        <p className="text-sm text-white/45">Select the desk that handles this type of object.</p>
+        <p className="text-sm text-white/45">Select the desk that handles this type of object. Desks without a live command boundary stay explicit about it.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {Object.entries(deskConfig).map(([key, cfg]) => (
             <Link

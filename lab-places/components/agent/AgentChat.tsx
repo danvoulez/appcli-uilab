@@ -7,7 +7,15 @@ import {
   Plus, X, Camera, FileImage, FileVideo, FileMusic,
   FileText, File as GenericFile, Archive, FileQuestion,
 } from 'lucide-react';
+import type {
+  AgentRuntimeAction,
+  AgentRuntimeCheckpoint,
+  AgentRuntimeEffectivePolicy,
+  AgentRuntimeSessionSnapshot,
+  AgentRuntimeTerminalSession,
+} from '@/lib/agent-runtime';
 import type { PlaceDetail, AttachedFile, FileKind } from '@/lib/types';
+import { commandClient } from '@/lib/command-client';
 import { FilePreviewSheet } from './FilePreviewSheet';
 
 // ─── File utilities ──────────────────────────────────────────────────────────
@@ -65,6 +73,7 @@ interface AgentCard {
   title: string;
   items: CardItem[];
   href?: string;
+  hrefLabel?: string;
 }
 
 interface ChatMsg {
@@ -73,6 +82,7 @@ interface ChatMsg {
   text: string;
   card?: AgentCard;
   files?: AttachedFile[];
+  pending?: boolean;
 }
 
 // ─── Status dot colour map ───────────────────────────────────────────────────
@@ -84,136 +94,33 @@ const statusDot: Record<string, string> = {
   idle: 'bg-white/20',
 };
 
-// ─── Mock response engine ────────────────────────────────────────────────────
-// Swap this call for commandClient.sendChatMessage() when the real backend is ready.
-
-function respond(
-  place: PlaceDetail,
-  raw: string,
-  files?: AttachedFile[]
-): Pick<ChatMsg, 'text' | 'card'> {
-  // ── File attachment acknowledgement ─────────────────────────────────────
-  if (files && files.length > 0) {
-    const label = files.length === 1
-      ? `"${files[0].name}"`
-      : `${files.length} files`;
-    return {
-      text: `Received ${label}${raw.trim() ? ` — and your message.` : '.'} Processing…`,
-    };
-  }
-
-  const q = raw.toLowerCase();
-
-  // ── Panel keywords ──────────────────────────────────────────────────────
-  for (const panel of place.panels) {
-    const words = panel.title.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
-    if (words.some((w) => q.includes(w))) {
-      return {
-        text: `Here's the current ${panel.title}:`,
-        card: {
-          type: 'data',
-          title: panel.title,
-          items: panel.items.map((i) => ({
-            label: i.label,
-            value: i.value ?? i.status ?? '',
-            status: i.status,
-          })),
-        },
-      };
-    }
-  }
-
-  // ── Signals / health / status ───────────────────────────────────────────
-  if (/signal|health|status|ready|alive|check|monitor|pulse/.test(q)) {
-    return {
-      text: `${place.shortLabel} is currently **${place.status}**. Key signals:`,
-      card: {
-        type: 'data',
-        title: 'Key Signals',
-        items: place.primarySignals.map((s) => ({ label: s.label, value: s.value })),
-      },
-    };
-  }
-
-  // ── Readiness / lights ──────────────────────────────────────────────────
-  if (/readiness|online|offline|connectivity|integrit|activit/.test(q)) {
-    return {
-      text: 'Here are the readiness indicators:',
-      card: {
-        type: 'data',
-        title: 'Readiness',
-        items: place.statusLights.map((l) => ({
-          label: l.label,
-          value: l.status === 'on' ? 'Online' : l.status === 'warn' ? 'Warning' : 'Offline',
-          status: l.status === 'on' ? 'ok' : l.status === 'warn' ? 'warn' : 'error',
-        })),
-      },
-    };
-  }
-
-  // ── Attention / alerts ──────────────────────────────────────────────────
-  if (/alert|warn|issue|problem|attention|broken|fail|error|incident/.test(q)) {
-    if (place.attention) {
-      return {
-        text: 'There is one active attention item:',
-        card: {
-          type: 'alert',
-          title: place.attention.title,
-          items: [{ label: 'Details', value: place.attention.body }],
-        },
-      };
-    }
-    return { text: 'No active alerts or attention items. All systems nominal.' };
-  }
-
-  // ── Relations ───────────────────────────────────────────────────────────
-  if (/relation|connect|link|depend|integrat|interact/.test(q)) {
-    if (place.relations.length === 0) {
-      return { text: 'No known relations registered for this place.' };
-    }
-    return {
-      text: `${place.shortLabel} has ${place.relations.length} known relation${place.relations.length !== 1 ? 's' : ''}:`,
-      card: {
-        type: 'data',
-        title: 'Relations',
-        items: place.relations.map((r) => ({ label: r.place, value: r.nature })),
-      },
-    };
-  }
-
-  // ── Overview / describe ─────────────────────────────────────────────────
-  if (/what|describ|overview|tell|explain|about|summar/.test(q)) {
-    return { text: place.overview };
-  }
-
-  // ── Action keyword match ────────────────────────────────────────────────
-  for (const action of place.actions) {
-    const words = action.label.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
-    if (words.some((w) => q.includes(w))) {
-      if (action.href) {
-        return {
-          text: `I can take you to "${action.label}" directly.`,
-          card: { type: 'link', title: action.label, items: [], href: action.href },
-        };
-      }
-      return {
-        text: `"${action.label}" is available. This action requires confirmation — want to proceed?`,
-      };
-    }
-  }
-
-  // ── Default ─────────────────────────────────────────────────────────────
-  const defaults = [
-    `${place.overview} What would you like to do?`,
-    `I'm watching ${place.title}. Status is **${place.status}**. Ask me about signals, panels, or any action.`,
-    `You can ask me about ${place.primarySignals.map((s) => s.label).join(', ')}, or any operational task.`,
-  ];
-  return { text: defaults[Math.floor(Math.random() * defaults.length)] };
-}
-
 // ─── Quick prompts ────────────────────────────────────────────────────────────
 
 function getQuickPrompts(place: PlaceDetail): string[] {
+  if (place.id === 'lab-id') {
+    return [
+      'Help me register a new principal or entity',
+      'Read a photo, screenshot, or PDF and prepare identity intake',
+      'Check what is missing for LAB ID to become authoritative',
+    ];
+  }
+
+  if (place.id === 'apps') {
+    return [
+      'Show the app catalog',
+      'Open Coding Agents',
+      'Explain app vs session vs workflow',
+    ];
+  }
+
+  if (place.id === 'workflows') {
+    return [
+      'What belongs in workflows?',
+      'Why is Apps different?',
+      'Explain current workflow limits',
+    ];
+  }
+
   const prompts: string[] = [];
   const primary = place.actions.find((a) => a.variant === 'primary');
   if (primary) prompts.push(primary.label);
@@ -227,8 +134,255 @@ function getQuickPrompts(place: PlaceDetail): string[] {
 }
 
 function getGreeting(place: PlaceDetail): string {
+  if (place.id === 'lab-id') {
+    return 'I am the LAB ID agent. Send text, a photo, a screenshot, a PDF, or another file and I will help structure identity intake for registration, credentials, and bindings.';
+  }
+
+  if (place.id === 'apps') {
+    return 'I am the Apps agent. This place is the catalog of operator apps, tools, consoles, and launch surfaces you open to act. Coding Agents lives here as an app. A spawned coding run becomes a session, and that session may expose a terminal.';
+  }
+
+  if (place.id === 'workflows') {
+    return 'I am the Workflows agent. This place is for orchestration, approvals, retries, and handoffs between runs. It is not the app-launch surface; Coding Agents should be opened from Apps.';
+  }
+
   const first = place.overview.split(/[.!?]/)[0].trim();
   return `I'm the ${place.shortLabel} agent. ${first}. What would you like to do?`;
+}
+
+function getInputPlaceholder(place: PlaceDetail): string {
+  if (place.id === 'lab-id') {
+    return 'Describe the principal, attach a photo or document, or ask for help with registration…';
+  }
+
+  if (place.id === 'apps') {
+    return 'Ask for a tool, open Coding Agents, or inspect a launch surface from Apps…';
+  }
+
+  if (place.id === 'workflows') {
+    return 'Ask about runs, retries, approvals, or orchestration state…';
+  }
+
+  return `Ask ${place.shortLabel} agent anything…`;
+}
+
+function runtimeErrorCard(message: string): AgentCard {
+  return {
+    type: 'alert',
+    title: 'Agent Runtime',
+    items: [{ label: 'Status', value: message }],
+  };
+}
+
+function runtimePendingCard(place: PlaceDetail, terminal?: AgentRuntimeTerminalSession | null): AgentCard {
+  return runtimeStateCard(place, {
+    pending: true,
+    terminal,
+  });
+}
+
+function runtimeStateCard(
+  place: PlaceDetail,
+  options: {
+    appId?: string | null;
+    phase?: string | null;
+    checkpoint?: AgentRuntimeCheckpoint | null;
+    effectivePolicy?: AgentRuntimeEffectivePolicy | null;
+    terminal?: AgentRuntimeTerminalSession | null;
+    pending: boolean;
+  }
+): AgentCard {
+  const appLabel =
+    options.appId === 'coding_agents'
+      ? 'Coding Agents'
+      : options.appId
+        ? humanizeRuntimeLabel(options.appId)
+        : place.shortLabel;
+  const phase = options.phase ?? options.checkpoint?.phase ?? (options.pending ? 'dispatching' : 'completed');
+  const phaseStatus = runtimePhaseStatus(phase, options.pending);
+  const phaseSummary =
+    options.checkpoint?.summary ??
+    (options.pending ? 'Dispatch accepted. Local inference is still progressing on LAB 512.' : 'Latest runtime phase captured.');
+  const items: CardItem[] = [
+    { label: 'Node', value: 'LAB 512', status: 'ok' },
+    { label: 'Surface', value: appLabel, status: options.appId ? 'ok' : 'idle' },
+    { label: 'Phase', value: humanizeRuntimeLabel(phase), status: phaseStatus },
+    { label: 'Status', value: phaseSummary, status: phaseStatus },
+  ];
+
+  if (options.effectivePolicy?.profileId) {
+    items.push({
+      label: 'Profile',
+      value: humanizeRuntimeLabel(options.effectivePolicy.profileId),
+      status: 'ok',
+    });
+  }
+
+  if (options.effectivePolicy?.executionMode) {
+    items.push({
+      label: 'Mode',
+      value: humanizeRuntimeLabel(options.effectivePolicy.executionMode),
+      status: options.effectivePolicy.executionMode === 'spawned_coding_agent' ? 'ok' : 'idle',
+    });
+  }
+
+  if (options.terminal) {
+    items.push({
+      label: 'Terminal',
+      value:
+        terminalStatusLabel(options.terminal) ??
+        humanizeRuntimeLabel(options.checkpoint?.terminalStatus ?? 'not_attached'),
+      status: options.terminal.connectable ? 'ok' : options.pending ? 'warn' : 'idle',
+    });
+  } else if (options.checkpoint?.terminalStatus) {
+    items.push({
+      label: 'Terminal',
+      value: humanizeRuntimeLabel(options.checkpoint.terminalStatus),
+      status: options.checkpoint.terminalStatus === 'pending_attach' ? 'warn' : 'idle',
+    });
+  }
+
+  if (options.effectivePolicy?.fallbackStrategy) {
+    items.push({
+      label: 'Fallback',
+      value: humanizeRuntimeLabel(options.effectivePolicy.fallbackStrategy),
+      status: options.effectivePolicy.automaticFallback ? 'warn' : 'idle',
+    });
+  }
+
+  return {
+    type: 'data',
+    title: options.pending ? 'Inference Dispatch' : 'Runtime State',
+    items,
+    href: options.terminal?.href,
+    hrefLabel: options.terminal ? 'Open terminal inspector' : undefined,
+  };
+}
+
+function runtimeActionCard(action: AgentRuntimeAction): AgentCard {
+  return {
+    type: 'data',
+    title: 'Governed Handoff',
+    items: [
+      { label: 'Action', value: action.actionKind, status: 'warn' },
+      { label: 'Target', value: action.targetPlace, status: 'idle' },
+      { label: 'Status', value: action.status, status: 'ok' },
+    ],
+  };
+}
+
+function terminalStatusLabel(terminal: AgentRuntimeTerminalSession): string {
+  switch (terminal.status) {
+    case 'bootstrap_captured':
+      return terminal.connectable ? 'live' : 'bootstrap captured';
+    case 'bootstrap_failed':
+      return 'bootstrap failed';
+    case 'bootstrap_timeout':
+      return 'bootstrap timeout';
+    case 'pending_attach':
+      return 'pending bootstrap';
+    case 'not_attached':
+      return 'no live terminal';
+    default:
+      return terminal.status.replace(/_/g, ' ');
+  }
+}
+
+function humanizeRuntimeLabel(value: string): string {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function runtimePhaseStatus(
+  phase: string | undefined,
+  pending: boolean
+): 'ok' | 'warn' | 'error' | 'idle' {
+  switch (phase) {
+    case 'dispatching':
+    case 'running':
+      return pending ? 'warn' : 'idle';
+    case 'awaiting_input':
+    case 'reviewing':
+      return 'ok';
+    case 'failed':
+      return 'error';
+    case 'completed':
+      return 'ok';
+    default:
+      return pending ? 'warn' : 'idle';
+  }
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+function inferLabIdIntakeMedium(files: AttachedFile[]): 'text' | 'photo' | 'document' | 'file' | 'agent' {
+  if (files.length === 0) return 'text';
+  const first = files[0];
+  if (first.kind === 'image') return 'photo';
+  if (first.kind === 'pdf' || first.kind === 'document') return 'document';
+  return 'file';
+}
+
+function buildLabIdRegisterHref({
+  input,
+  pendingFiles,
+  latestUserMessage,
+}: {
+  input: string;
+  pendingFiles: AttachedFile[];
+  latestUserMessage?: ChatMsg;
+}) {
+  const candidateText = input.trim().length > 0 ? input.trim() : latestUserMessage?.text?.trim() ?? '';
+  const candidateFiles = pendingFiles.length > 0 ? pendingFiles : latestUserMessage?.files ?? [];
+  const params = new URLSearchParams({ desk: 'lab-id' });
+
+  if (candidateText) {
+    params.set('description', candidateText);
+  }
+
+  const intakeMedium = inferLabIdIntakeMedium(candidateFiles);
+  params.set('intakeMedium', intakeMedium);
+
+  if (candidateFiles.length > 0) {
+    params.set('sourceLabel', candidateFiles[0].name);
+    params.set('sourceReference', candidateFiles.map((file) => file.name).join(', '));
+    params.set('sourceSurface', 'lab-id-agent-handoff');
+  } else if (candidateText) {
+    params.set('sourceLabel', 'Agent intake note');
+    params.set('sourceSurface', 'lab-id-agent-handoff');
+  }
+
+  return `/creation-sessions/new?${params.toString()}`;
+}
+
+function LabIdIntakeHint({ color }: { color: string }) {
+  return (
+    <div
+      className="mx-4 mt-3 rounded-2xl border px-4 py-3"
+      style={{ background: `${color}12`, borderColor: `${color}33` }}
+    >
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/42">Identity intake</p>
+      <p className="mt-1 text-[12px] leading-relaxed text-white/62">
+        Use text, photos, screenshots, PDFs, or other files to describe a person, organization, credential, or trust link.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {['Text notes', 'Photos', 'Scans / PDFs', 'Other files'].map((item) => (
+          <span
+            key={item}
+            className="rounded-full border px-2.5 py-1 text-[10px] font-semibold text-white/62"
+            style={{ borderColor: `${color}33`, background: 'rgba(255,255,255,0.03)' }}
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -288,7 +442,7 @@ function CardView({ card, color }: { card: AgentCard; color: string }) {
       {card.items.map((item, i) => (
         <div
           key={item.label}
-          className={`flex items-center justify-between px-3 py-1.5 ${i < card.items.length - 1 ? 'border-b border-white/[0.04]' : ''}`}
+          className={`flex items-center justify-between px-3 py-1.5 ${i < card.items.length - 1 || card.href ? 'border-b border-white/[0.04]' : ''}`}
         >
           <div className="flex items-center gap-2 min-w-0">
             {item.status && (
@@ -299,6 +453,15 @@ function CardView({ card, color }: { card: AgentCard; color: string }) {
           <span className="text-[11px] font-semibold text-white/75 ml-3 flex-shrink-0 text-right">{item.value}</span>
         </div>
       ))}
+      {card.href && (
+        <Link
+          href={card.href}
+          className="flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-white/65 hover:text-white transition-colors bg-white/[0.02]"
+        >
+          <span>{card.hrefLabel ?? 'Open'}</span>
+          <ChevronRight size={12} className="flex-shrink-0" />
+        </Link>
+      )}
     </div>
   );
 }
@@ -408,6 +571,7 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
   const [messages, setMessages] = useState<ChatMsg[]>([
     { id: 'greeting', role: 'agent', text: getGreeting(place) },
   ]);
+  const [runtimeSessionId, setRuntimeSessionId] = useState<string | null>(null);
   const [input, setInput]             = useState('');
   const [isTyping, setIsTyping]       = useState(false);
   const [showPrompts, setShowPrompts] = useState(!initialQuery);
@@ -427,6 +591,15 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const quickPrompts = getQuickPrompts(place);
+  const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user');
+  const labIdRegisterHref =
+    place.id === 'lab-id'
+      ? buildLabIdRegisterHref({
+          input,
+          pendingFiles,
+          latestUserMessage,
+        })
+      : null;
 
   // ── File handlers ──────────────────────────────────────────────────────────
 
@@ -474,18 +647,121 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
       setMessages((prev) => [...prev, userMsg]);
 
       setIsTyping(true);
-      const delay = 700 + Math.random() * 500;
-      setTimeout(() => {
-        // TODO: replace respond() with commandClient.sendChatMessage(place.id, text, filesToSend)
-        const { text: respText, card } = respond(place, text, filesToSend);
-        setMessages((prev) => [
-          ...prev,
-          { id: `a-${Date.now()}`, role: 'agent', text: respText, card },
-        ]);
+      void (async () => {
+        try {
+          const result = await commandClient.sendChatMessage(
+            place.id,
+            text,
+            filesToSend,
+            runtimeSessionId ?? undefined
+          );
+          setRuntimeSessionId(result.sessionId);
+
+          if (!result.pending && result.replyText) {
+            const replyText = result.replyText;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `a-${Date.now()}`,
+                role: 'agent',
+                text: replyText,
+                card: result.action ? runtimeActionCard(result.action) : undefined,
+              },
+            ]);
+            setIsTyping(false);
+            return;
+          }
+
+          const pendingId = `a-${Date.now()}`;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: pendingId,
+              role: 'agent',
+              text: result.acknowledgement,
+              card: runtimeStateCard(place, {
+                appId: result.appId,
+                phase: result.phase,
+                checkpoint: result.checkpoint,
+                effectivePolicy: result.effectivePolicy,
+                terminal: result.terminalSession,
+                pending: true,
+              }),
+              pending: true,
+            },
+          ]);
+
+          let settled = false;
+          let lastSnapshot: AgentRuntimeSessionSnapshot | null = null;
+          for (let attempt = 0; attempt < 20; attempt += 1) {
+            await delay(900);
+            const snapshot = await commandClient.readAgentSession(result.sessionId);
+            lastSnapshot = snapshot;
+            if (!snapshot.pending && snapshot.replyText) {
+              settled = true;
+              const replyText = snapshot.replyText;
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === pendingId
+                      ? {
+                          ...msg,
+                          text: replyText,
+                          card: snapshot.action
+                            ? runtimeActionCard(snapshot.action)
+                            : runtimeStateCard(place, {
+                                appId: snapshot.appId,
+                                phase: snapshot.phase,
+                                checkpoint: snapshot.checkpoint,
+                                effectivePolicy: snapshot.effectivePolicy,
+                                terminal: snapshot.terminalSession,
+                                pending: false,
+                              }),
+                        pending: false,
+                      }
+                    : msg
+                )
+              );
+              break;
+            }
+          }
+
+          if (!settled) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === pendingId
+                  ? {
+                      ...msg,
+                      text: 'The runtime is still waiting for LAB 512. Continuity is preserved, but the final reply has not arrived yet.',
+                      card: runtimeStateCard(place, {
+                        appId: lastSnapshot?.appId ?? result.appId,
+                        phase: lastSnapshot?.phase ?? result.phase,
+                        checkpoint: lastSnapshot?.checkpoint ?? result.checkpoint,
+                        effectivePolicy: lastSnapshot?.effectivePolicy ?? result.effectivePolicy,
+                        terminal: lastSnapshot?.terminalSession ?? result.terminalSession,
+                        pending: true,
+                      }),
+                      pending: false,
+                    }
+                  : msg
+              )
+            );
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Agent runtime failed to respond.';
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `a-${Date.now()}`,
+              role: 'agent',
+              text: message,
+              card: runtimeErrorCard(message),
+            },
+          ]);
+        }
         setIsTyping(false);
-      }, delay);
+      })();
     },
-    [isTyping, pendingFiles, place]
+    [isTyping, pendingFiles, place, runtimeSessionId]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -580,6 +856,25 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
           <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Live</span>
         </div>
       </header>
+
+      {place.id === 'lab-id' && <LabIdIntakeHint color={color} />}
+      {place.id === 'lab-id' && (
+        <div className="px-4 pt-3">
+          <Link
+            href={labIdRegisterHref ?? '/creation-sessions/new?desk=lab-id'}
+            className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 transition-all hover:bg-white/[0.07]"
+          >
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">Canonical handoff</p>
+              <p className="mt-1 text-sm font-semibold text-white">Continue to canonical register</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-white/45">
+                Carry the current LAB ID intake into the registration desk with provenance prefilled.
+              </p>
+            </div>
+            <ChevronRight size={16} className="text-white/30" />
+          </Link>
+        </div>
+      )}
 
       {/* ── Message thread ───────────────────────────────────────────────── */}
       <div
@@ -733,7 +1028,7 @@ export function AgentChat({ place, initialQuery }: { place: PlaceDetail; initial
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder={`Ask ${place.shortLabel} agent anything…`}
+            placeholder={getInputPlaceholder(place)}
             rows={1}
             className="flex-1 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-2.5 text-white placeholder-white/28 resize-none outline-none transition-colors scrollbar-none leading-relaxed"
             style={{

@@ -28,7 +28,7 @@ export default async function EntityInspectorPage({ params }: Props) {
     >
       <InspectorLayout
         inspector={inspector}
-        timelineHref={`/timelines/projects/proj-001`}
+        timelineHref={`/timelines/entities/${id}`}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Role + capabilities */}
@@ -53,10 +53,26 @@ export default async function EntityInspectorPage({ params }: Props) {
           {/* Trust links */}
           <InfoPanel
             title="Trust Links"
-            rows={inspector.trustLinks.map((t) => ({
-              label: t.target,
-              value: t.mechanism,
-            }))}
+            rows={
+              inspector.trustLinks.length > 0
+                ? inspector.trustLinks.map((t) => ({
+                    label: t.target,
+                    value: t.mechanism,
+                  }))
+                : [{ label: 'Links', value: 'No explicit trust links yet' }]
+            }
+          />
+
+          <InfoPanel
+            title="Registration Provenance"
+            rows={
+              (inspector.provenance ?? []).length > 0
+                ? (inspector.provenance ?? []).map((item) => ({
+                    label: item.label,
+                    value: item.value,
+                  }))
+                : [{ label: 'Provenance', value: 'No intake metadata recorded' }]
+            }
           />
 
           {/* Actions */}

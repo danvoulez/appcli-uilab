@@ -21,7 +21,7 @@ export default async function Home() {
         <header className="flex-shrink-0 pt-safe px-4 md:px-8 pb-4">
           <div className="flex items-baseline justify-between max-w-5xl mx-auto w-full">
             <div>
-              <h1 className="text-base font-black tracking-tight text-white leading-none">LAB Places</h1>
+              <h1 className="text-base font-black tracking-tight text-white leading-none">minilab.work</h1>
               <p className="text-[9px] text-white/22 mt-0.5 font-semibold tracking-[0.15em] uppercase">
                 Operational Cockpit
               </p>
